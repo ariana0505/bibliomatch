@@ -1,0 +1,6 @@
+flask
+pymongo[srv]
+flask-cors
+werkzeug
+python-dotenv
+anthropic
