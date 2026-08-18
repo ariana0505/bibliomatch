@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Catálogo, préstamos y herramientas de aprendizaje de la biblioteca escolar BiblioMatch.">
+  <meta name="theme-color" content="#f7f9fb">
+  <title>BiblioMatch · Biblioteca escolar</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+  <section id="auth-screen" class="auth-screen" aria-labelledby="auth-title">
+    <div class="auth-card">
+      <div class="brand brand-large" aria-label="BiblioMatch">
+        <span aria-hidden="true">📖</span>
+        <span>BiblioMatch</span>
+      </div>
+      <p class="eyebrow">Biblioteca escolar</p>
+      <h1 id="auth-title">Lee, comparte y aprende</h1>
+      <p class="muted">Encuentra libros, solicita préstamos y guarda tu progreso de estudio.</p>
+
+      <div class="auth-tabs" role="tablist" aria-label="Acceso">
+        <button id="login-tab" class="tab active" type="button" role="tab" aria-selected="true" aria-controls="login-form">Ingresar</button>
+        <button id="register-tab" class="tab" type="button" role="tab" aria-selected="false" aria-controls="register-form">Crear cuenta</button>
+      </div>
+
+      <form id="login-form" class="stack" autocomplete="on">
+        <label for="login-apodo">Apodo</label>
+        <input id="login-apodo" name="apodo" autocomplete="username" minlength="3" maxlength="24" required>
+        <label for="login-password">Contraseña</label>
+        <input id="login-password" name="contrasena" type="password" autocomplete="current-password" maxlength="128" required>
+        <button class="primary wide" type="submit">Entrar</button>
+        <p class="form-error" data-error-for="login-form" role="alert"></p>
+      </form>
+
+      <form id="register-form" class="stack hidden" autocomplete="on">
+        <label for="register-apodo">Apodo</label>
+        <input id="register-apodo" name="apodo" autocomplete="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_.-]+" required>
+        <p class="field-help">3–24 caracteres: letras, números, punto, guion o guion bajo.</p>
+        <label for="register-password">Contraseña</label>
+        <input id="register-password" name="contrasena" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+        <p class="field-help">Usa al menos 8 caracteres y no reutilices la contraseña del colegio.</p>
+        <div class="form-row">
+          <div>
+            <label for="register-grade">Grado</label>
+            <select id="register-grade" name="grado" required>
+              <option>1°</option><option>2°</option><option>3°</option><option>4°</option><option>5°</option>
+            </select>
+          </div>
+          <div>
+            <label for="register-section">Sección</label>
+            <select id="register-section" name="seccion" required>
+              <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option>
+            </select>
+          </div>
+        </div>
+        <label class="check-row"><input type="checkbox" required> Leí el <a href="/privacy.html" target="_blank" rel="noopener">aviso de privacidad</a>.</label>
+        <button class="primary wide" type="submit">Crear mi cuenta</button>
+        <p class="form-error" data-error-for="register-form" role="alert"></p>
+      </form>
+    </div>
+  </section>
+
+  <div id="app-shell" class="app-shell hidden">
+    <header class="topbar">
+      <button class="brand link-button" type="button" data-view="catalog" aria-label="Ir al catálogo">
+        <span aria-hidden="true">📖</span><span>BiblioMatch</span>
+      </button>
+      <div class="topbar-actions">
+        <span id="user-chip" class="user-chip"></span>
+        <button id="theme-toggle" class="icon-button" type="button" aria-label="Cambiar tema">🌙</button>
+      </div>
+    </header>
+
+    <main id="contenido" class="main-content" tabindex="-1">
+      <section id="catalog-view" data-panel="catalog"></section>
+      <section id="learning-view" data-panel="learning" class="hidden"></section>
+      <section id="management-view" data-panel="management" class="hidden"></section>
+      <section id="profile-view" data-panel="profile" class="hidden"></section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Navegación principal">
+      <button class="nav-item active" type="button" data-view="catalog"><span aria-hidden="true">📚</span><span>Biblioteca</span></button>
+      <button class="nav-item" type="button" data-view="learning"><span aria-hidden="true">🧠</span><span>Aprender</span></button>
+      <button id="management-nav" class="nav-item hidden" type="button" data-view="management"><span aria-hidden="true">🗂️</span><span>Gestión</span></button>
+      <button class="nav-item" type="button" data-view="profile"><span aria-hidden="true">👤</span><span>Perfil</span></button>
+    </nav>
+  </div>
+
+  <dialog id="book-dialog" class="dialog large-dialog" aria-labelledby="book-dialog-title">
+    <div id="book-dialog-content"></div>
+  </dialog>
+
+  <dialog id="book-form-dialog" class="dialog" aria-labelledby="book-form-title">
+    <form id="book-form" class="stack">
+      <div class="dialog-heading">
+        <h2 id="book-form-title">Registrar libro</h2>
+        <button class="icon-button" type="button" data-close-dialog="book-form-dialog" aria-label="Cerrar">✕</button>
+      </div>
+      <input type="hidden" name="id">
+      <label for="book-title">Título</label>
+      <input id="book-title" name="titulo" maxlength="160" required>
+      <div class="form-row">
+        <div><label for="book-author">Autor</label><input id="book-author" name="autor" maxlength="120"></div>
+        <div><label for="book-isbn">ISBN</label><input id="book-isbn" name="isbn" maxlength="17" inputmode="numeric"></div>
+      </div>
+      <div class="form-row">
+        <div>
+          <label for="book-area">Área</label>
+          <select id="book-area" name="area">
+            <option value="LIT">Literatura</option><option value="MAT">Matemática</option><option value="CIE">Ciencias</option>
+            <option value="TEC">Tecnología</option><option value="HIS">Historia</option><option value="ART">Arte</option><option value="REF">Referencia</option>
+          </select>
+        </div>
+        <div><label for="book-copies">Ejemplares</label><input id="book-copies" name="ejemplares_total" type="number" min="1" max="99" value="1" required></div>
+      </div>
+      <label for="book-summary">Sinopsis</label>
+      <textarea id="book-summary" name="sinopsis" rows="4" maxlength="2000"></textarea>
+      <div class="form-row">
+        <div><label for="book-location">Ubicación</label><input id="book-location" name="ubicacion" maxlength="120"></div>
+        <div><label for="book-donor">Donante</label><input id="book-donor" name="donante" maxlength="120"></div>
+      </div>
+      <label for="book-photo">Portada <span class="muted">(PNG, JPG o WebP; máx. 750 KB)</span></label>
+      <input id="book-photo" name="foto_archivo" type="file" accept="image/png,image/jpeg,image/webp">
+      <input name="foto" type="hidden">
+      <div class="button-row">
+        <button id="book-ai-button" class="secondary" type="button">✨ Completar con IA</button>
+        <button class="primary" type="submit">Guardar libro</button>
+      </div>
+      <p class="form-error" data-error-for="book-form" role="alert"></p>
+    </form>
+  </dialog>
+
+  <dialog id="loan-dialog" class="dialog" aria-labelledby="loan-title">
+    <form id="loan-form" class="stack">
+      <div class="dialog-heading"><h2 id="loan-title">Registrar préstamo</h2><button class="icon-button" type="button" data-close-dialog="loan-dialog" aria-label="Cerrar">✕</button></div>
+      <label for="loan-book">Libro disponible</label>
+      <select id="loan-book" name="libro_id" required></select>
+      <label for="loan-user">Apodo del estudiante</label>
+      <input id="loan-user" name="apodo" maxlength="24" required>
+      <label for="loan-due">Fecha de devolución</label>
+      <input id="loan-due" name="vence_en" type="date" required>
+      <button class="primary" type="submit">Registrar préstamo</button>
+      <p class="form-error" data-error-for="loan-form" role="alert"></p>
+    </form>
+  </dialog>
+
+  <dialog id="password-dialog" class="dialog" aria-labelledby="password-title">
+    <form id="password-form" class="stack">
+      <div class="dialog-heading"><h2 id="password-title">Cambiar contraseña</h2><button class="icon-button" type="button" data-close-dialog="password-dialog" aria-label="Cerrar">✕</button></div>
+      <label for="current-password">Contraseña actual</label>
+      <input id="current-password" name="actual" type="password" autocomplete="current-password" required>
+      <label for="new-password">Nueva contraseña</label>
+      <input id="new-password" name="nueva" type="password" autocomplete="new-password" minlength="8" maxlength="128" required>
+      <button class="primary" type="submit">Actualizar contraseña</button>
+      <p class="form-error" data-error-for="password-form" role="alert"></p>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
