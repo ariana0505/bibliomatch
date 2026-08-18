@@ -2,3 +2,14 @@
 prueba.py
 __pycache__/
 
+.vercel
+.env*
+!.env.example
+
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Informes y renderizados generados localmente.
+output/
+tmp/
