@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Biblioteca 3D · BiblioMatch</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/library.css">
+  <script type="module" src="/library.js"></script>
+</head>
+<body>
+  <main id="room" aria-label="Recorrido en primera persona por la biblioteca">
+    <canvas id="scene" tabindex="0" aria-label="Biblioteca 3D. WASD para caminar, ratón para mirar, E para examinar y Escape para pausar."></canvas>
+    <header class="room-header">
+      <a class="back-link" href="/">← Volver al catálogo</a>
+      <div class="room-name"><span>BIBLIOMATCH / BIBLIOTECA 3D</span><h1 id="current-area">Biblioteca</h1></div>
+      <div class="header-buttons"><button id="search-button" class="quiet-button" type="button" disabled>Buscar <kbd>B</kbd></button><button id="pause-button" class="quiet-button" type="button">Pausar <kbd>Esc</kbd></button></div>
+    </header>
+    <div id="crosshair" aria-hidden="true" hidden></div>
+    <div id="target" class="target" hidden>
+      <strong id="target-title"></strong>
+      <span id="target-count"></span>
+      <span class="examine-key">E</span><span>Examinar</span>
+    </div>
+    <footer class="room-footer"><span id="collection-status">Preparando la sala…</span><span><kbd>W A S D</kbd> Caminar <b>·</b> Ratón Mirar <b>·</b> <kbd>E</kbd> Examinar <b>·</b> <kbd>B</kbd> Buscar</span></footer>
+    <section id="welcome" class="overlay" aria-labelledby="welcome-title">
+      <div class="welcome-card">
+        <span class="eyebrow">BIBLIOTECA 3D · TODAS LAS ÁREAS</span>
+        <h2 id="welcome-title">Entre historias.</h2>
+        <p id="welcome-copy">Recorre las áreas, descubre los títulos disponibles y consulta los que están prestados.</p>
+        <div class="controls"><div><kbd>W A S D</kbd><span>Camina por el pasillo</span></div><div><kbd>Ratón</kbd><span>Mira hacia los libros</span></div><div><kbd>E</kbd><span>Examina el libro señalado</span></div><div><kbd>Esc</kbd><span>Pausa y libera el cursor</span></div></div>
+        <p id="room-message" role="status">Preparando los libros…</p>
+        <button id="enter-button" type="button" disabled>Entrar a la sala <span>→</span></button>
+        <button id="welcome-search" class="quiet-button menu-button" type="button" disabled>Buscar libros y explorar áreas <kbd>B</kbd></button>
+        <button id="refresh-button" class="quiet-button menu-button" type="button">Actualizar catálogo</button>
+        <a id="demo-link" href="/library.html?demo=1" hidden>Explorar con libros de demostración</a>
+        <p class="small-note">Para computadora: utiliza teclado y ratón.</p>
+      </div>
+    </section>
+  </main>
+  <dialog id="finder" aria-labelledby="finder-title">
+    <button id="close-finder" class="close-button" type="button" aria-label="Cerrar buscador">✕</button>
+    <span class="eyebrow">EXPLORA LA BIBLIOTECA</span><h2 id="finder-title">Encuentra tu próxima lectura</h2>
+    <nav id="area-directory" class="area-directory" aria-label="Ir a un área"></nav>
+    <div class="search-fields"><div><label for="book-search">Título, autor o ISBN</label><input id="book-search" type="search" maxlength="160" placeholder="¿Qué libro estás buscando?"></div><div><label for="search-area">Sección</label><select id="search-area"><option value="">Todas las secciones</option></select></div></div>
+    <p id="search-count" role="status"></p><div id="search-results"></div>
+    <button id="more-results" type="button" hidden>Mostrar más resultados</button>
+    <p class="small-note">«Ir al estante» te lleva junto al libro y lo resalta en turquesa. Continúa el recorrido y pulsa E para examinarlo.</p>
+  </dialog>
+  <dialog id="detail" aria-labelledby="detail-title">
+    <button id="close-detail" class="close-button" type="button" aria-label="Cerrar ficha">✕</button>
+    <div class="detail-layout"><div id="detail-cover" class="detail-cover"></div><div><span id="detail-area" class="eyebrow"></span><h2 id="detail-title"></h2><p id="detail-author"></p><span id="detail-count" class="availability"></span><p id="detail-summary"></p><p id="detail-location" class="small-note"></p><button id="request-button" type="button">Solicitar préstamo</button></div></div>
+    <section class="reviews"><h3>Opiniones de lectores</h3><div id="reviews-list"></div>
+      <form id="review-form"><label for="stars">Tu puntuación</label><select id="stars" name="estrellas"><option value="5">5 estrellas</option><option value="4">4 estrellas</option><option value="3">3 estrellas</option><option value="2">2 estrellas</option><option value="1">1 estrella</option></select><label for="comment">Tu opinión</label><textarea id="comment" name="comentario" rows="3" maxlength="1000"></textarea><button type="submit">Guardar opinión</button></form>
+    </section><p id="detail-message" role="status"></p><p class="small-note">Esc · Cerrar ficha. Después pulsa «Continuar recorrido» para volver a caminar.</p>
+  </dialog>
+  <noscript>Activa JavaScript para recorrer la biblioteca 3D. <a href="/">Volver al catálogo</a></noscript>
+</body>
+</html>

@@ -10,6 +10,39 @@ const AREAS = {
   REF: ["Referencia", "#64748b"],
 };
 
+const BOOK_COVER_ART = {
+  "9791399000016": ["☁️", "#31588a", "#b9dff2"],
+  "9791399000023": ["🐦", "#125f61", "#f2b95b"],
+  "9791399000030": ["🔭", "#172554", "#7c6fca"],
+  "9791399000047": ["🤖", "#334155", "#60a5fa"],
+  "9791399000054": ["✉️", "#875a44", "#efd9bc"],
+  "9791399000061": ["🗺️", "#6f451f", "#d6ad60"],
+  "9791399000078": ["🎨", "#713c7c", "#f08cad"],
+  "9791399000085": ["🔤", "#374151", "#a7b6c8"],
+  "9791399000092": ["🔦", "#17466f", "#f3c44e"],
+  "9791399000108": ["🌻", "#37633c", "#efd05d"],
+  "9791399000115": ["💻", "#18355b", "#41c7a5"],
+  "9791399000122": ["🕰️", "#4b315f", "#c6a9d6"],
+  "9791399000139": ["⚓", "#66402c", "#d88952"],
+  "9791399000146": ["🎵", "#315c45", "#a9d28f"],
+  "9791399000153": ["🏝️", "#17637a", "#e7bf68"],
+  "9791399000160": ["📐", "#2453a6", "#edb95a"],
+  "9791399000177": ["🌊", "#125a78", "#70c7d4"],
+  "9791399000184": ["☀️", "#a34719", "#f7c64d"],
+  "9791399000191": ["🚂", "#25304f", "#d9a441"],
+  "9791399000207": ["🏛️", "#68462d", "#cda96c"],
+};
+
+const AREA_COVER_ART = {
+  MAT: ["∑", "#1e3a8a", "#60a5fa"],
+  CIE: ["🔬", "#14532d", "#86c77a"],
+  TEC: ["⚙️", "#374151", "#f0a94b"],
+  LIT: ["📖", "#7f1d1d", "#e88d79"],
+  HIS: ["🏺", "#78350f", "#d6ad60"],
+  ART: ["✦", "#6b217e", "#e879b2"],
+  REF: ["🔎", "#334155", "#94a3b8"],
+};
+
 const COURSES = [
   ["Matemática", "🔢"], ["Comunicación", "🗣️"], ["Lectura", "📚"],
   ["Inglés", "🇬🇧"], ["Biología", "🧬"], ["Química", "⚗️"],
@@ -29,7 +62,7 @@ const QUIZ = [
 
 const STYLE_NAMES = { V: "Visual", A: "Auditivo", R: "Lectoescritor", K: "Práctico" };
 
-const state = {
+const initialState = () => ({
   user: null,
   csrf: "",
   view: "catalog",
@@ -39,13 +72,22 @@ const state = {
   users: [],
   progress: [],
   stats: null,
+  catalogFilters: { q: "", area: "", disponible: false, orden: "titulo" },
+  catalogTotal: 0,
+  catalogPage: 1,
+  catalogPages: 1,
   selectedBook: null,
   opinions: [],
   course: null,
   style: "",
   material: null,
+  recommendations: null,
+  aiAvailable: false,
+  aiQuestionsRemaining: 8,
   loading: false,
-};
+});
+const state = initialState();
+let sessionGeneration = 0;
 
 const byId = (id) => document.getElementById(id);
 const panels = () => document.querySelectorAll("[data-panel]");
@@ -60,6 +102,45 @@ function escapeHtml(value = "") {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function escapeXml(value = "") {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function coverTitleLines(title = "") {
+  const words = String(title).trim().split(/\s+/);
+  const lines = [""];
+  for (const word of words) {
+    const current = lines.at(-1);
+    if (current && `${current} ${word}`.length > 25 && lines.length < 3) lines.push(word);
+    else lines[lines.length - 1] = current ? `${current} ${word}` : word;
+  }
+  return lines.slice(0, 3);
+}
+
+function referenceCover(book) {
+  const [symbol, dark, light] = BOOK_COVER_ART[book.isbn] || AREA_COVER_ART[book.area] || AREA_COVER_ART.REF;
+  const titleLines = coverTitleLines(book.titulo);
+  const area = AREAS[book.area]?.[0] || "Biblioteca";
+  const title = titleLines.map((line, index) => `<text x="300" y="${555 + index * 48}" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="${titleLines.length > 2 ? 31 : 35}" font-weight="700">${escapeXml(line)}</text>`).join("");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" role="img" aria-label="Portada ilustrada de ${escapeXml(book.titulo)}">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${dark}"/><stop offset="1" stop-color="${light}"/></linearGradient></defs>
+    <rect width="600" height="800" fill="url(#g)"/>
+    <circle cx="72" cy="128" r="135" fill="#fff" opacity=".09"/><circle cx="555" cy="350" r="190" fill="#fff" opacity=".08"/>
+    <path d="M0 430 Q150 365 300 430 T600 430 V800 H0Z" fill="#08111f" opacity=".23"/>
+    <text x="48" y="70" fill="#fff" opacity=".9" font-family="Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="3">${escapeXml(area.toUpperCase())}</text>
+    <circle cx="300" cy="300" r="142" fill="#fff" opacity=".16"/><circle cx="300" cy="300" r="116" fill="#fff" opacity=".12"/>
+    <text x="300" y="355" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, Arial, sans-serif" font-size="142">${escapeXml(symbol)}</text>
+    ${title}
+    <text x="300" y="738" text-anchor="middle" fill="#fff" opacity=".78" font-family="Arial, sans-serif" font-size="22">${escapeXml(book.autor || "Bibliomatch")}</text>
+  </svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
 function formatDate(value, includeTime = false) {
@@ -93,6 +174,7 @@ function setFormError(formId, message = "") {
 }
 
 async function api(path, options = {}) {
+  const generation = sessionGeneration;
   const settings = { credentials: "same-origin", ...options };
   settings.headers = { Accept: "application/json", ...(options.headers || {}) };
   if (options.body && typeof options.body !== "string") {
@@ -105,6 +187,7 @@ async function api(path, options = {}) {
   const response = await fetch(path, settings);
   const contentType = response.headers.get("content-type") || "";
   const data = contentType.includes("application/json") ? await response.json() : {};
+  if (generation !== sessionGeneration) throw new Error("La sesión cambió; vuelve a realizar la operación.");
   if (!response.ok) {
     const error = new Error(data.error || `Error ${response.status}`);
     error.status = response.status;
@@ -116,8 +199,12 @@ async function api(path, options = {}) {
 }
 
 function showAuth(tab = "login") {
-  state.user = null;
-  state.csrf = "";
+  sessionGeneration += 1;
+  Object.assign(state, initialState());
+  document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close());
+  panels().forEach((panel) => { panel.innerHTML = ""; });
+  byId("book-dialog-content").innerHTML = "";
+  document.querySelectorAll("dialog form").forEach((form) => form.reset());
   byId("app-shell").classList.add("hidden");
   byId("auth-screen").classList.remove("hidden");
   switchAuthTab(tab);
@@ -153,6 +240,7 @@ async function boot() {
     const data = await api("/api/me");
     state.user = data.usuario;
     state.csrf = data.csrf;
+    state.aiAvailable = Boolean(data.ia);
     showApp();
   } catch (error) {
     showAuth();
@@ -181,12 +269,27 @@ function changeView(view) {
   byId("contenido").focus();
 }
 
-async function loadBooks(query = "") {
+async function loadBooks(filters = null, page = state.catalogPage) {
+  if (filters) {
+    state.catalogFilters = { ...state.catalogFilters, ...filters };
+    page = 1;
+  }
+  state.catalogPage = page;
+  const params = new URLSearchParams();
+  params.set("pagina", String(page));
+  if (state.catalogFilters.q) params.set("q", state.catalogFilters.q);
+  if (state.catalogFilters.area) params.set("area", state.catalogFilters.area);
+  if (state.catalogFilters.disponible) params.set("disponible", "1");
+  if (state.catalogFilters.orden !== "titulo") params.set("orden", state.catalogFilters.orden);
+  const query = params.toString();
   const view = byId("catalog-view");
   view.innerHTML = catalogShell('<div class="loading">Cargando catálogo…</div>');
   try {
-    const data = await api(`/api/libros${query}`);
+    const data = await api(`/api/libros${query ? `?${query}` : ""}`);
     state.books = data.libros;
+    state.catalogTotal = data.total;
+    state.catalogPages = data.paginas;
+    if (page > data.paginas) return loadBooks(null, data.paginas);
     renderCatalog();
   } catch (error) {
     view.innerHTML = catalogShell(`<div class="error-panel">${escapeHtml(error.message)}</div>`);
@@ -194,31 +297,66 @@ async function loadBooks(query = "") {
 }
 
 function catalogShell(content) {
+  const filters = state.catalogFilters;
   return `
     <div class="page-heading">
       <div><p class="eyebrow">Catálogo escolar</p><h1>Encuentra tu próxima lectura</h1><p class="muted">Consulta disponibilidad y solicita un ejemplar.</p></div>
       ${isStaff() ? '<button class="primary" type="button" data-action="new-book">+ Registrar libro</button>' : ""}
     </div>
+    ${recommendationPanel()}
     <form id="catalog-filter" class="toolbar" role="search">
-      <div class="search-wrap"><label class="hidden" for="catalog-search">Buscar libros</label><input id="catalog-search" name="q" placeholder="Título, autor o ISBN" maxlength="100"></div>
+      <div class="search-wrap"><label class="hidden" for="catalog-search">Buscar libros</label><input id="catalog-search" name="q" value="${escapeHtml(filters.q)}" placeholder="Título, autor, ISBN, ubicación o donante" maxlength="100"></div>
       <label class="hidden" for="catalog-area">Área</label>
-      <select id="catalog-area" name="area"><option value="">Todas las áreas</option>${Object.entries(AREAS).map(([code, item]) => `<option value="${code}">${item[0]}</option>`).join("")}</select>
-      <label class="availability-check"><input type="checkbox" name="disponible" value="1"> Solo disponibles</label>
+      <select id="catalog-area" name="area"><option value="">Todas las áreas</option>${Object.entries(AREAS).map(([code, item]) => `<option value="${code}" ${filters.area === code ? "selected" : ""}>${item[0]}</option>`).join("")}</select>
+      <label class="hidden" for="catalog-order">Ordenar catálogo</label>
+      <select id="catalog-order" name="orden"><option value="titulo" ${filters.orden === "titulo" ? "selected" : ""}>Título</option><option value="autor" ${filters.orden === "autor" ? "selected" : ""}>Autor</option><option value="recientes" ${filters.orden === "recientes" ? "selected" : ""}>Más recientes</option><option value="disponibilidad" ${filters.orden === "disponibilidad" ? "selected" : ""}>Más disponibles</option></select>
+      <label class="availability-check"><input type="checkbox" name="disponible" value="1" ${filters.disponible ? "checked" : ""}> Solo disponibles</label>
+      <div class="filter-actions"><button class="primary" type="submit">Buscar</button><button class="ghost-button" type="button" data-action="clear-catalog">Limpiar</button></div>
     </form>
-    ${content}`;
+    ${content}
+    <section class="library-entry" aria-labelledby="library-entry-title"><div><p class="eyebrow">Un nuevo modo de explorar</p><h2 id="library-entry-title">Entra a la biblioteca 3D</h2><p>Recorre todas las áreas, encuentra un libro y consulta los títulos disponibles y prestados.</p></div><div class="button-row"><a class="primary library-link" href="/library.html">Entrar a la biblioteca 3D →</a><a class="library-demo-link" href="/library.html?demo=1">Ver demostración</a></div></section>`;
+}
+
+function recommendationPanel() {
+  if (!state.aiAvailable) return "";
+  const result = state.recommendations;
+  const recommendations = result?.recomendaciones || [];
+  return `<section class="recommendation-panel" aria-labelledby="recommendation-title">
+    <div class="recommendation-copy">
+      <p class="eyebrow">BiblioMatch IA</p>
+      <h2 id="recommendation-title">¿Qué te gustaría leer?</h2>
+      <p class="muted">Cuéntanos tus intereses y te sugeriremos libros disponibles de este catálogo.</p>
+    </div>
+    <form id="recommendation-form" class="recommendation-form">
+      <label class="hidden" for="recommendation-interests">Intereses de lectura</label>
+      <input id="recommendation-interests" name="intereses" maxlength="300" placeholder="Ejemplo: aventuras, astronomía y protagonistas valientes" required>
+      <button class="primary" type="submit">✨ Recomendarme libros</button>
+      <p class="form-error" data-error-for="recommendation-form" role="alert"></p>
+    </form>
+    ${recommendations.length ? `<div class="recommendation-results"><p>${escapeHtml(result.introduccion || "Estas lecturas pueden interesarte.")}</p><div class="recommendation-grid">${recommendations.map(recommendationCard).join("")}</div><p class="ai-note">Sugerencias generadas con IA a partir del catálogo, tu grado y tu historial de préstamos. Revisa siempre la ficha del libro.</p></div>` : ""}
+  </section>`;
+}
+
+function recommendationCard(item) {
+  const book = item.libro;
+  return `<article class="recommendation-card">
+    <div class="recommendation-cover">${cover(book)}</div>
+    <div><span class="badge success">${book.disponibles} disponible${book.disponibles === 1 ? "" : "s"}</span><h3>${escapeHtml(book.titulo)}</h3><p class="muted">${escapeHtml(book.autor || "Autor desconocido")}</p><p>${escapeHtml(item.razon)}</p><button class="ghost-button" type="button" data-action="open-book" data-id="${book.id}">Ver detalles</button></div>
+  </article>`;
 }
 
 function renderCatalog() {
+  const summary = `<p class="results-summary" role="status">${state.catalogTotal} ${state.catalogTotal === 1 ? "libro encontrado" : "libros encontrados"}</p>`;
   const content = state.books.length
     ? `<div class="books-grid">${state.books.map(bookCard).join("")}</div>`
     : '<div class="empty-state"><div class="cover-placeholder">📭</div><h2>No hay libros para mostrar</h2><p>Prueba otros filtros o registra el primer libro.</p></div>';
-  byId("catalog-view").innerHTML = catalogShell(content);
+  const pagination = state.catalogPages > 1 ? `<nav class="button-row" aria-label="Páginas del catálogo"><button type="button" class="secondary" data-action="catalog-previous" ${state.catalogPage <= 1 ? "disabled" : ""}>Anterior</button><span>Página ${state.catalogPage} de ${state.catalogPages}</span><button type="button" class="secondary" data-action="catalog-next" ${state.catalogPage >= state.catalogPages ? "disabled" : ""}>Siguiente</button></nav>` : "";
+  byId("catalog-view").innerHTML = catalogShell(summary + content + pagination);
 }
 
 function cover(book, className = "") {
-  if (book.foto) return `<img class="${className}" src="${escapeHtml(book.foto)}" alt="Portada de ${escapeHtml(book.titulo)}">`;
-  if (book.isbn) return `<img class="${className}" src="https://covers.openlibrary.org/b/isbn/${encodeURIComponent(book.isbn)}-M.jpg?default=false" alt="Portada de ${escapeHtml(book.titulo)}">`;
-  return `<div class="cover-placeholder" aria-hidden="true">📘</div>`;
+  const source = book.foto || referenceCover(book);
+  return `<img class="book-cover-image ${className}" src="${escapeHtml(source)}" alt="Portada referencial de ${escapeHtml(book.titulo)}" loading="lazy" decoding="async">`;
 }
 
 function bookCard(book) {
@@ -236,7 +374,8 @@ function bookCard(book) {
 }
 
 async function openBook(bookId) {
-  state.selectedBook = state.books.find((book) => book.id === bookId);
+  state.selectedBook = state.books.find((book) => book.id === bookId)
+    || state.recommendations?.recomendaciones?.find((item) => item.libro.id === bookId)?.libro;
   if (!state.selectedBook) return;
   state.opinions = [];
   renderBookDialog(true);
@@ -303,6 +442,7 @@ function openBookForm(book = null) {
   form.elements.donante.value = book?.donante || "";
   form.elements.foto.value = book?.foto || "";
   byId("book-form-title").textContent = book ? "Editar libro" : "Registrar libro";
+  byId("book-ai-button").classList.toggle("hidden", !state.aiAvailable);
   setFormError("book-form");
   byId("book-form-dialog").showModal();
 }
@@ -317,11 +457,20 @@ function openLoanForm() {
   byId("loan-dialog").showModal();
 }
 
+async function loadLoanBooks() {
+  const result = await api("/api/libros?por_pagina=250&disponible=1");
+  for (let page = 2; page <= result.paginas; page += 1) {
+    const next = await api(`/api/libros?por_pagina=250&disponible=1&pagina=${page}`);
+    result.libros.push(...next.libros);
+  }
+  return result;
+}
+
 async function loadManagement() {
   const view = byId("management-view");
   view.innerHTML = '<div class="loading">Cargando gestión…</div>';
   try {
-    const calls = [api("/api/libros"), api("/api/prestamos?estado=activo"), api("/api/solicitudes?estado=pendiente"), api("/api/estadisticas")];
+    const calls = [loadLoanBooks(), api("/api/prestamos?estado=activo"), api("/api/solicitudes?estado=pendiente"), api("/api/estadisticas")];
     if (isAdmin()) calls.push(api("/api/usuarios"));
     const [books, loans, requests, stats, users] = await Promise.all(calls);
     state.books = books.libros;
@@ -383,6 +532,7 @@ async function loadProfile() {
     state.loans = loans.prestamos;
     state.requests = requests.solicitudes;
     state.progress = progress.progreso;
+    state.aiQuestionsRemaining = progress.preguntas_ia_restantes ?? 8;
     renderProfile();
   } catch (error) {
     view.innerHTML = `<div class="error-panel">${escapeHtml(error.message)}</div>`;
@@ -399,13 +549,19 @@ function renderProfile() {
       <section class="profile-card"><div class="section-heading"><h2>Mis solicitudes</h2><span class="badge neutral">${pending.length}</span></div>${pending.length ? `<div class="item-list">${pending.map((item) => `<div class="list-item"><span>${escapeHtml(item.titulo)}</span><button class="danger-button" type="button" data-action="cancel-request" data-id="${item.id}">Cancelar</button></div>`).join("")}</div>` : '<p class="muted">No tienes solicitudes pendientes.</p>'}</section>
     </div>
     <section class="profile-card"><div class="section-heading"><h2>Mi aprendizaje</h2></div>${state.progress.length ? `<div class="item-list">${state.progress.map((item) => `<div class="list-item"><span>${escapeHtml(item.curso)}</span><strong>${escapeHtml(item.estilo ? item.estilo.split("").map((letter) => STYLE_NAMES[letter]).join(" + ") : "Sin test")}${item.mejor_puntaje != null ? ` · ${item.mejor_puntaje}/${item.total}` : ""}</strong></div>`).join("")}</div>` : '<p class="muted">Completa un test en Aprender para guardar tu resultado.</p>'}</section>
-    ${state.user.rol === "estudiante" ? `<section class="profile-card"><div class="section-heading"><h2>Solicitar ser administrador</h2></div><p class="muted">La anfitriona revisará tu solicitud. Explica por qué quieres ayudar a administrar BiblioMatch.</p><form id="admin-request-form" class="stack"><label for="admin-request-reason">Motivo de la solicitud</label><textarea id="admin-request-reason" name="motivo" rows="5" minlength="20" maxlength="1000" placeholder="Cuéntanos por qué quieres ser administrador y cómo ayudarías a la biblioteca…" required></textarea><button class="primary" type="submit">Enviar solicitud por correo</button><p class="field-help">Se abrirá tu aplicación de correo con el mensaje dirigido a penaariana075@gmail.com.</p><p class="form-error" data-error-for="admin-request-form" role="alert"></p></form></section>` : ""}`;
+    ${state.user.rol === "estudiante" ? `<section class="profile-card"><div class="section-heading"><h2>Solicitar ser administrador</h2></div><p class="muted">La anfitriona revisará tu solicitud. Explica por qué quieres ayudar a administrar BiblioMatch.</p><form id="admin-request-form" class="stack"><label for="admin-request-reason">Motivo de la solicitud</label><textarea id="admin-request-reason" name="motivo" rows="5" minlength="20" maxlength="1000" placeholder="Cuéntanos por qué quieres ser administrador y cómo ayudarías a la biblioteca…" required></textarea><button class="primary" type="submit">Enviar solicitud por correo</button><p class="field-help">Se abrirá tu aplicación de correo con el mensaje dirigido a penaariana075@gmail.com.</p><p class="form-error" data-error-for="admin-request-form" role="alert"></p></form></section>` : ""}
+    <section class="profile-card" aria-labelledby="profile-library-title">
+      <div class="section-heading"><h2 id="profile-library-title">Tu biblioteca, una nueva experiencia</h2></div>
+      <p class="muted">Recorre los estantes y descubre tu próxima lectura en un espacio 3D.</p>
+      <a class="profile-library-link" href="/library.html">Explorar la biblioteca 3D →</a>
+    </section>`;
 }
 
 async function loadLearning() {
   try {
     const data = await api("/api/progreso");
     state.progress = data.progreso;
+    state.aiQuestionsRemaining = data.preguntas_ia_restantes ?? 8;
   } catch (error) {
     showToast(error.message, true);
   }
@@ -429,21 +585,30 @@ function quizForm() {
 
 function learningResult(saved) {
   const names = state.style.split("").map((letter) => STYLE_NAMES[letter]).join(" + ");
+  const questionsLeft = state.aiQuestionsRemaining;
+  const aiTool = state.aiAvailable
+    ? `<h3>Pregunta a tu tutor de IA</h3><p class="muted">La respuesta usará por separado tu nivel (${escapeHtml(state.user.grado || "secundaria")}) y tu forma de aprender (${escapeHtml(names)}).</p><p class="question-counter"><strong>${questionsLeft}</strong> de 8 preguntas disponibles hoy</p>${questionsLeft > 0 ? `<form id="material-form" class="stack"><label for="material-topic">¿Qué quieres preguntar sobre ${escapeHtml(state.course)}?</label><textarea id="material-topic" name="tema" rows="6" maxlength="3000" placeholder="Ejemplo: Explícame las leyes de Newton…" required></textarea><button class="primary" type="submit">✨ Preguntar a la IA</button><p class="form-error" data-error-for="material-form" role="alert"></p></form>` : '<div class="info-panel"><strong>Límite diario alcanzado</strong><p>Ya utilizaste tus 8 preguntas. Podrás volver a preguntar mañana.</p></div>'}`
+    : '<div class="info-panel"><strong>Asistente de IA no disponible</strong><p>La biblioteca todavía no ha configurado este servicio. Tu resultado de aprendizaje sí quedó guardado.</p></div>';
   return `<section class="learning-card"><div class="result-card"><p class="eyebrow">Resultado orientativo</p><h2>${escapeHtml(names)}</h2><p>Prueba una mezcla de estas estrategias y evalúa con cuál recuerdas y comprendes mejor.</p></div>
-    <h3>Genera una guía adaptada</h3><form id="material-form" class="stack"><label for="material-topic">Tema o texto de estudio</label><textarea id="material-topic" name="tema" rows="6" maxlength="3000" placeholder="Ejemplo: Las leyes de Newton…" required></textarea><button class="primary" type="submit">✨ Crear guía y preguntas</button><p class="form-error" data-error-for="material-form" role="alert"></p></form>
+    ${aiTool}
     ${state.material ? renderMaterial(state.material) : ""}
-    ${saved ? `<p class="muted">Resultado guardado · ${saved.intentos || 0} prácticas registradas</p>` : ""}</section>`;
+    ${saved ? `<div class="section-heading saved-learning"><p class="muted">Resultado guardado · ${saved.intentos || 0} prácticas registradas</p><button class="ghost-button" type="button" data-action="retake-quiz">Repetir test</button></div>` : ""}</section>`;
 }
 
 function renderMaterial(material) {
-  return `<div class="result-card"><h3>${escapeHtml(material.titulo || "Guía de estudio")}</h3><p>${escapeHtml(material.resumen || "")}</p>${Array.isArray(material.puntos) ? `<ul>${material.puntos.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}</ul>` : ""}${Array.isArray(material.preguntas) ? `<h3>Comprueba lo aprendido</h3><ol>${material.preguntas.map((question) => `<li>${escapeHtml(question)}</li>`).join("")}</ol>` : ""}</div>`;
+  return `<div class="result-card"><h3>${escapeHtml(material.titulo || "Guía de estudio")}</h3><p>${escapeHtml(material.resumen || "")}</p>${material.ejemplo ? `<h3>Ejemplo</h3><p>${escapeHtml(material.ejemplo)}</p>` : ""}${material.actividad ? `<h3>Prueba tú</h3><p>${escapeHtml(material.actividad)}</p>` : ""}${Array.isArray(material.puntos) ? `<h3>Ideas clave</h3><ul>${material.puntos.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}</ul>` : ""}${Array.isArray(material.preguntas) ? `<h3>Comprueba lo aprendido</h3><ol>${material.preguntas.map((question) => `<li>${escapeHtml(question)}</li>`).join("")}</ol>` : ""}</div>`;
 }
 
 async function handleAction(button) {
   const action = button.dataset.action;
   const id = button.dataset.id;
   try {
+    if (action === "catalog-previous") await loadBooks(null, Math.max(1, state.catalogPage - 1));
+    if (action === "catalog-next") await loadBooks(null, Math.min(state.catalogPages, state.catalogPage + 1));
     if (action === "new-book") openBookForm();
+    if (action === "clear-catalog") {
+      await loadBooks({ q: "", area: "", disponible: false, orden: "titulo" });
+    }
     if (action === "open-book") await openBook(id);
     if (action === "edit-book") { byId("book-dialog").close(); openBookForm(state.books.find((book) => book.id === id)); }
     if (action === "request-book") {
@@ -508,7 +673,13 @@ async function handleAction(button) {
         showAuth();
       }
     }
-    if (action === "start-quiz") { state.course = button.dataset.course; state.style = ""; state.material = null; renderLearning(); }
+    if (action === "start-quiz") {
+      state.course = button.dataset.course;
+      state.style = state.progress.find((item) => item.curso === state.course)?.estilo || "";
+      state.material = null;
+      renderLearning();
+    }
+    if (action === "retake-quiz") { state.style = ""; state.material = null; renderLearning(); }
     if (action === "back-courses") { state.course = null; state.style = ""; state.material = null; renderLearning(); }
   } catch (error) {
     showToast(error.message, true);
@@ -553,11 +724,35 @@ document.addEventListener("submit", async (event) => {
     showToast("Solicitud preparada en tu aplicación de correo.");
     return;
   }
+  if (form.id === "recommendation-form") {
+    event.preventDefault();
+    setFormError(form.id);
+    const submit = form.querySelector("button[type=submit]");
+    submit.disabled = true;
+    submit.textContent = "Buscando lecturas…";
+    try {
+      const interests = new FormData(form).get("intereses").trim();
+      state.recommendations = await api("/api/generar", {
+        method: "POST",
+        body: { tipo: "recomendaciones", intereses: interests },
+      });
+      renderCatalog();
+    } catch (error) {
+      setFormError(form.id, error.message);
+      submit.disabled = false;
+      submit.textContent = "✨ Recomendarme libros";
+    }
+    return;
+  }
   if (form.id === "catalog-filter") {
     event.preventDefault();
-    const params = new URLSearchParams(new FormData(form));
-    [...params.entries()].forEach(([key, value]) => { if (!value) params.delete(key); });
-    await loadBooks(params.toString() ? `?${params}` : "");
+    const data = Object.fromEntries(new FormData(form));
+    await loadBooks({
+      q: String(data.q || "").trim(),
+      area: String(data.area || ""),
+      disponible: data.disponible === "1",
+      orden: String(data.orden || "titulo"),
+    });
   }
   if (form.id === "review-form") {
     event.preventDefault();
@@ -571,17 +766,25 @@ document.addEventListener("submit", async (event) => {
   }
   if (form.id === "learning-quiz") {
     event.preventDefault();
+    setFormError(form.id);
     const data = new FormData(form);
     const counts = { V: 0, A: 0, R: 0, K: 0 };
     for (let index = 0; index < QUIZ.length; index += 1) counts[data.get(`q${index}`)] += 1;
     const maximum = Math.max(...Object.values(counts));
-    state.style = Object.keys(counts).filter((letter) => counts[letter] === maximum).join("");
+    const calculatedStyle = Object.keys(counts).filter((letter) => counts[letter] === maximum).join("");
     try {
-      await api(`/api/progreso/${encodeURIComponent(state.course)}`, { method: "PUT", body: { estilo: state.style } });
+      await api(`/api/progreso/${encodeURIComponent(state.course)}`, { method: "PUT", body: { estilo: calculatedStyle } });
       const progress = await api("/api/progreso");
       state.progress = progress.progreso;
-    } catch (error) { showToast(error.message, true); }
-    renderLearning();
+      state.aiQuestionsRemaining = progress.preguntas_ia_restantes ?? 8;
+      const saved = state.progress.find((item) => item.curso === state.course);
+      if (!saved?.estilo) throw new Error("El servidor no confirmó el resultado del test.");
+      state.style = saved.estilo;
+      renderLearning();
+    } catch (error) {
+      state.style = "";
+      setFormError(form.id, `No se pudo guardar el test: ${error.message}`);
+    }
   }
   if (form.id === "material-form") {
     event.preventDefault();
@@ -591,13 +794,14 @@ document.addEventListener("submit", async (event) => {
     submit.textContent = "Creando guía…";
     try {
       const data = Object.fromEntries(new FormData(form));
-      const result = await api("/api/generar", { method: "POST", body: { tipo: "material", curso: state.course, estilo: state.style, tema: data.tema } });
+      const result = await api("/api/generar", { method: "POST", body: { tipo: "material", curso: state.course, tema: data.tema } });
       state.material = result.material;
+      state.aiQuestionsRemaining = result.preguntas_restantes;
       renderLearning();
     } catch (error) {
       setFormError(form.id, error.message);
       submit.disabled = false;
-      submit.textContent = "✨ Crear guía y preguntas";
+      submit.textContent = "✨ Preguntar a la IA";
     }
   }
 });
@@ -617,6 +821,7 @@ byId("login-form").addEventListener("submit", async (event) => {
     const data = await api("/api/login", { method: "POST", body: values });
     state.user = data.usuario;
     state.csrf = data.csrf;
+    state.aiAvailable = Boolean(data.ia);
     form.reset();
     showApp();
   } catch (error) {
@@ -635,6 +840,7 @@ byId("register-form").addEventListener("submit", async (event) => {
     const data = await api("/api/registro", { method: "POST", body: values });
     state.user = data.usuario;
     state.csrf = data.csrf;
+    state.aiAvailable = Boolean(data.ia);
     form.reset();
     showApp();
   } catch (error) {
@@ -663,7 +869,7 @@ byId("book-ai-button").addEventListener("click", async () => {
   button.disabled = true;
   button.textContent = "Buscando…";
   try {
-    const data = await api("/api/generar", { method: "POST", body: { tipo: "libro", titulo: title } });
+    const data = await api("/api/generar", { method: "POST", body: { tipo: "libro", titulo: title, isbn: form.elements.isbn.value.trim() } });
     form.elements.autor.value = data.autor || "";
     form.elements.area.value = data.area || "LIT";
     form.elements.sinopsis.value = data.sinopsis || "";

@@ -17,6 +17,15 @@
   font-family: Inter, ui-rounded, "Nunito Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+.library-entry { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-top: 36px; padding: 28px; border-radius: 16px; background: #193d39; color: #f8f0df; }
+.library-entry .eyebrow { color: #e7c58f; }
+.library-entry h2 { margin: 8px 0; font-family: Georgia, serif; font-size: 27px; font-weight: 400; }
+.library-entry p { max-width: 460px; margin-bottom: 0; }
+.library-entry .button-row { flex-direction: column; align-items: stretch; flex-shrink: 0; }
+.library-entry .library-link { padding: 12px 18px; border-radius: 8px; text-decoration: none; text-align: center; color: #193d39; background: #e7c58f; font-weight: 650; }
+.library-demo-link { color: #e7c58f; text-align: center; font-size: 14px; }
+@media (max-width: 760px) { .library-entry { align-items: stretch; flex-direction: column; } }
+
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #11151b;
@@ -142,12 +151,36 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .page-heading h1 { margin-bottom: .4rem; }
 .page-heading p { margin-bottom: 0; }
 
-.toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) 190px auto; gap: .7rem; margin-bottom: 1rem; }
+.toolbar { display: grid; grid-template-columns: minmax(260px, 1fr) 170px 170px auto auto; gap: .7rem; margin-bottom: 1rem; }
 .search-wrap { position: relative; }
 .search-wrap input { padding-left: 2.6rem; }
 .search-wrap::before { content: "⌕"; position: absolute; left: .9rem; top: .48rem; color: var(--muted); font-size: 1.35rem; }
 .availability-check { display: flex; align-items: center; gap: .5rem; padding: 0 .7rem; font-weight: 700; }
 .availability-check input { width: auto; }
+.filter-actions { display: flex; gap: .45rem; }
+.filter-actions button { white-space: nowrap; }
+.results-summary { margin: -.25rem 0 1rem; color: var(--muted); font-size: .86rem; font-weight: 700; }
+
+.recommendation-panel {
+  margin-bottom: 1.25rem;
+  padding: 1.2rem;
+  border: 1px solid #c7d2fe;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, color-mix(in srgb, #dbeafe 72%, var(--surface)), color-mix(in srgb, #fce7f3 55%, var(--surface)));
+}
+.recommendation-copy h2 { margin-bottom: .35rem; }
+.recommendation-copy p:last-child { margin-bottom: .9rem; }
+.recommendation-form { display: grid; grid-template-columns: 1fr auto; gap: .7rem; }
+.recommendation-form .form-error { grid-column: 1 / -1; }
+.recommendation-results { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.recommendation-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8rem; }
+.recommendation-card { display: grid; grid-template-columns: 82px 1fr; gap: .8rem; padding: .8rem; border: 1px solid var(--border); border-radius: 13px; background: var(--surface); }
+.recommendation-card h3 { margin: .4rem 0 .15rem; }
+.recommendation-card p { margin-bottom: .6rem; font-size: .86rem; }
+.recommendation-card .ghost-button { padding: .5rem .7rem; font-size: .78rem; }
+.recommendation-cover { height: 112px; overflow: hidden; border-radius: 9px; background: var(--surface-2); }
+.recommendation-cover img { width: 100%; height: 100%; object-fit: cover; }
+.ai-note { margin: .8rem 0 0; color: var(--muted); font-size: .75rem; }
 
 .books-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(225px, 1fr)); gap: 1rem; }
 .book-card { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: 0 5px 18px rgb(28 37 51 / 5%); }
@@ -166,6 +199,8 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .empty-state { padding: 3rem 1rem; border: 1px dashed var(--border); border-radius: var(--radius); text-align: center; color: var(--muted); }
 .loading { padding: 2rem; text-align: center; color: var(--muted); }
 .error-panel { padding: 1rem; border: 1px solid #fecaca; border-radius: 12px; background: #fef2f2; color: #991b1b; }
+.info-panel { margin-top: 1rem; padding: 1rem; border: 1px solid #bfdbfe; border-radius: 12px; background: #eff6ff; color: #1e3a8a; }
+.info-panel p { margin: .35rem 0 0; }
 
 .bottom-nav {
   position: fixed;
@@ -220,8 +255,12 @@ td button { padding: .42rem .6rem; font-size: .76rem; }
 .quiz-options label { display: flex; gap: .55rem; padding: .65rem; border: 1px solid var(--border); border-radius: 10px; font-weight: 550; }
 .quiz-options input { width: auto; }
 .result-card { padding: 1rem; border-radius: 14px; background: var(--surface-2); }
+.question-counter { width: fit-content; padding: .45rem .7rem; border-radius: 999px; background: #dbeafe; color: #1e3a8a; font-size: .82rem; }
+.saved-learning { margin: 1rem 0 0; }
+.saved-learning p { margin: 0; }
 
 .profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.profile-library-link { display: inline-block; padding-block: .5rem; color: var(--primary); font-weight: 650; text-underline-offset: .2em; }
 .avatar { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 18px; background: #dbeafe; color: #1d4ed8; font-size: 1.6rem; font-weight: 900; }
 .profile-header { display: flex; align-items: center; gap: 1rem; }
 .profile-header h1 { margin-bottom: .2rem; }
@@ -239,8 +278,18 @@ td button { padding: .42rem .6rem; font-size: .76rem; }
   .bottom-nav { bottom: 1.2rem; border-bottom: 1px solid var(--border); border-radius: 18px; }
 }
 
+@media (max-width: 1000px) {
+  .toolbar { grid-template-columns: minmax(240px, 1fr) 1fr; }
+  .search-wrap, .filter-actions { grid-column: 1 / -1; }
+  .availability-check { padding: .7rem; }
+  .recommendation-grid { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 700px) {
   .toolbar, .book-detail, .profile-grid { grid-template-columns: 1fr; }
+  .recommendation-form { grid-template-columns: 1fr; }
+  .recommendation-form .form-error { grid-column: auto; }
+  .filter-actions button { flex: 1; }
   .dashboard-grid { grid-template-columns: 1fr 1fr; }
   .book-detail .detail-cover { width: 150px; }
   .user-chip { display: none; }
