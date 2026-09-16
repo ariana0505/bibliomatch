@@ -114,7 +114,6 @@ export function createWorld(canvas) {
       box(group, .75, .17, 5.2, x, 2.78, -1, oak, true);
       box(group, .66, .13, 5, x, .09, -1, oakEdge);
       label(group, bay.label.toUpperCase(), 2.5, .19, side * 1.838, 2.78, -1, -side * Math.PI / 2, bay.code === 'PRE' ? '#773d34' : '#294e46');
-      label(group, `${bay.code}  /  ${String(bay.index + 1).padStart(2,'0')}`, .48, .11, side * 1.858, .83, .95, -side * Math.PI / 2, '#4a493e');
     }
     box(group, 5.6, .12, BAY_LENGTH, 0, 4.18, -1, 0xeee8db);
     box(group, 1.75, .016, BAY_LENGTH, 0, .022, -1, bay.code === 'PRE' ? 0x665763 : 0x536e62);
