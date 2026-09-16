@@ -1161,8 +1161,39 @@ def save_opinion(book_id: str):
 @app.get("/api/usuarios")
 @roles_required("admin")
 def list_users():
-    users = list(get_db().usuarios.find().sort("apodo", ASCENDING).limit(1_000))
-    return jsonify(usuarios=[user_json(user, private=True) for user in users])
+    query: dict[str, Any] = {}
+    search = request.args.get("q", "").strip()
+    role = request.args.get("rol", "").strip()
+    grade = request.args.get("grado", "").strip()
+    state = request.args.get("activo", "").strip()
+    if len(search) > 24:
+        raise ApiError("La búsqueda es demasiado larga.", 422, "validation_error")
+    if search:
+        query["apodo"] = {"$regex": search_pattern(search), "$options": "i"}
+    if role:
+        if role not in ROLES:
+            raise ApiError("El rol no es válido.", 422, "validation_error")
+        query["rol"] = role
+    if grade:
+        if grade not in {"1°", "2°", "3°", "4°", "5°"}:
+            raise ApiError("El grado no es válido.", 422, "validation_error")
+        query["grado"] = grade
+    if state in {"1", "0"}:
+        query["activo"] = {"$ne": False} if state == "1" else False
+    try:
+        page = int(request.args.get("pagina", "1"))
+        page_size = int(request.args.get("por_pagina", "50"))
+    except ValueError:
+        raise ApiError("La paginación no es válida.", 422, "validation_error") from None
+    if page < 1 or not 1 <= page_size <= 200:
+        raise ApiError("La paginación no es válida.", 422, "validation_error")
+    db = get_db()
+    total = db.usuarios.count_documents(query)
+    users = list(db.usuarios.find(query).sort("apodo", ASCENDING).skip((page - 1) * page_size).limit(page_size))
+    return jsonify(
+        usuarios=[user_json(user, private=True) for user in users],
+        total=total, pagina=page, paginas=max(1, (total + page_size - 1) // page_size),
+    )
 
 
 @app.patch("/api/usuarios/<user_id>")
