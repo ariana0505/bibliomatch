@@ -911,17 +911,48 @@ byId("register-form").addEventListener("submit", async (event) => {
   } finally { submit.disabled = false; }
 });
 
-byId("book-photo").addEventListener("change", (event) => {
-  const file = event.target.files?.[0];
-  if (!file) return;
-  if (file.size > 750_000) {
-    setFormError("book-form", "La portada no puede superar 750 KB.");
-    event.target.value = "";
-    return;
+const COVER_MAX_BYTES = 750_000;
+const COVER_MAX_HEIGHT = 900;
+
+// Photos from a phone are several megabytes; a cover is displayed at a few
+// hundred pixels, so the browser shrinks and re-encodes it before uploading.
+async function compressCover(file) {
+  const bitmap = await createImageBitmap(file).catch(() => null);
+  if (!bitmap) throw new Error("No se pudo leer la imagen. Usa un archivo PNG, JPG o WebP.");
+  const scale = Math.min(1, COVER_MAX_HEIGHT / bitmap.height, (COVER_MAX_HEIGHT * 2) / bitmap.width);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#fff"; // transparent PNGs become white, not black, in JPEG
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  for (const quality of [0.86, 0.75, 0.62, 0.5]) {
+    const dataUrl = canvas.toDataURL("image/jpeg", quality);
+    if (dataUrl.length * 0.75 <= COVER_MAX_BYTES) return dataUrl;
   }
-  const reader = new FileReader();
-  reader.onload = () => { byId("book-form").elements.foto.value = reader.result; };
-  reader.readAsDataURL(file);
+  throw new Error("La portada sigue siendo demasiado grande; prueba con una imagen más pequeña.");
+}
+
+byId("book-photo").addEventListener("change", async (event) => {
+  const input = event.target;
+  const file = input.files?.[0];
+  const form = byId("book-form");
+  if (!file) return;
+  setFormError("book-form");
+  input.disabled = true;
+  try {
+    const original = file.size <= COVER_MAX_BYTES && ["image/png", "image/jpeg", "image/webp"].includes(file.type)
+      ? await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); })
+      : null;
+    form.elements.foto.value = original || await compressCover(file);
+    if (!original) showToast(`Portada ajustada a ${Math.round(form.elements.foto.value.length * 0.75 / 1024)} KB.`);
+  } catch (error) {
+    form.elements.foto.value = "";
+    input.value = "";
+    setFormError("book-form", error.message);
+  } finally { input.disabled = false; }
 });
 
 byId("book-ai-button").addEventListener("click", async () => {
