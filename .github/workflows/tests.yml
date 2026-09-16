@@ -34,4 +34,4 @@ jobs:
           PYTHON_DOTENV_DISABLED: "1"
       - run: node --test tests/frontend.test.cjs
       - run: node --test tests/library.test.mjs
-      - run: python -m py_compile api/index.py scripts/seed.py
+      - run: python -m py_compile api/index.py scripts/seed.py scripts/import_fictional_books.py

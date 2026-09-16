@@ -65,9 +65,18 @@ Debajo del catálogo están «Entrar a la biblioteca 3D» y «Ver demostración�
 
 `/library.html` usa la sesión actual y carga todas las páginas del catálogo mediante `formato=3d` (metadatos sin portadas ni sinopsis). Cada título ocupa un lugar único; se añaden pares de estanterías al superar 48 títulos por módulo. Los títulos con al menos un ejemplar disponible permanecen en su área; los de disponibilidad cero van a Prestados. Las fichas consultan la información completa y actual, incluyendo opiniones y solicitudes. La disponibilidad se actualiza cada minuto y con «Actualizar catálogo»; los cambios detectados en una ficha se aplican al cerrarla. Solo se mantienen en memoria gráfica las estanterías próximas al lector.
 
-`/library.html?demo=1` funciona sin sesión ni base de datos, con 28 títulos de ejemplo en todas las áreas, incluyendo prestados y sin operaciones de escritura. Three.js 0.160.1 se sirve localmente, con su licencia en `public/vendor/three-LICENSE.txt`. Ejecuta `node --test tests/library.test.mjs` para verificar distribución, paginación, búsqueda y colisiones.
+`/library.html?demo=1` funciona sin sesión ni base de datos, con 1.024 títulos de ejemplo (996 nuevos libros ficticios), incluyendo prestados y sin operaciones de escritura. Cada una de las ocho secciones tiene 128 títulos: dos estantes completos con cuatro baldas de 16 libros. Los libros generados tienen autores y descripciones identificados como ficticios; no se incorporan al catálogo real. Three.js 0.160.1 se sirve localmente, con su licencia en `public/vendor/three-LICENSE.txt`. Ejecuta `node --test tests/library.test.mjs` para verificar distribución, paginación, búsqueda y colisiones.
 
 La vista requiere WebGL y captura del puntero en un navegador de computadora. Puede probarse la demostración sirviendo `public` con un servidor estático local.
+
+Para incorporar explícitamente los 996 títulos ficticios al catálogo compartido por la web y la biblioteca 3D:
+
+```bash
+.venv/bin/python scripts/import_fictional_books.py
+.venv/bin/python scripts/import_fictional_books.py --apply
+```
+
+El primer comando solo consulta; `--apply` inserta los títulos que faltan en la base configurada. Requiere Node.js para leer la colección de demostración. Conserva los libros existentes, no inventa ISBN, usuarios ni préstamos, y puede repetirse sin duplicar registros. Todos los ejemplares importados comienzan disponibles en su área; la sección Prestados depende exclusivamente de préstamos reales. Los registros quedan identificados con `ficticio: true` e `importacion: fictional-library-v1`, además de la indicación visible en autor y sinopsis. El catálogo publicado refleja la carga si utiliza la misma base configurada; esta operación no despliega archivos del frontend.
 
 ### Verificaciones
 

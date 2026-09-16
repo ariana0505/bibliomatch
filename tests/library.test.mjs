@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { movePlayer, targetBook } from '../public/library-controls.mjs';
-import { demoBooks } from '../public/library-demo.mjs';
+import { demoBooks, DEMO_SHELF_COLUMNS } from '../public/library-demo.mjs';
 import {AREAS, BAY_LENGTH, planLibrary, bayAt, findBooks, loadAllBooks, sectionFor} from '../public/library-layout.mjs';
 
 test('WASD is relative to the view and never changes eye height', () => {
@@ -34,6 +34,35 @@ test('demonstration has unique titles and no real record identifiers', () => {
   assert.equal(new Set(demoBooks.map(book=>book.titulo)).size,demoBooks.length);
   assert.ok(demoBooks.every(book=>book.demo && book.id.startsWith('demo-')));
   assert.equal(new Set(demoBooks.map(sectionFor)).size,Object.keys(AREAS).length);
+});
+
+test('dense demonstration fills every shelf without overlapping books', () => {
+  const layout = planLibrary(demoBooks, {columns:DEMO_SHELF_COLUMNS});
+  assert.equal(demoBooks.length, 1024);
+  assert.equal(layout.bays.length, 8);
+  for (const bay of layout.bays) {
+    assert.equal(bay.books.length, 128);
+    const shelves = new Map();
+    for (const book of bay.books) {
+      const p = layout.positions.get(book.id);
+      const row = Math.round((p.y - p.height / 2 - .30) / .58);
+      const key = `${p.side}:${row}`;
+      if (!shelves.has(key)) shelves.set(key, []);
+      shelves.get(key).push(p.z + bay.offset);
+      assert.ok(book.disponibles >= 0 && book.disponibles <= book.ejemplares_total);
+    }
+    assert.equal(shelves.size, 8);
+    for (const positions of shelves.values()) {
+      assert.equal(positions.length, 16);
+      positions.sort((a,b) => a-b);
+      assert.ok(positions[0] - .125 >= -3.4);
+      assert.ok(positions.at(-1) + .125 <= 1.4);
+      for (let i=1; i<positions.length; i++) assert.ok(positions[i]-positions[i-1] > .25);
+    }
+  }
+  const fictional = demoBooks.filter(book => book.ficticio);
+  assert.equal(fictional.length, 996);
+  assert.ok(fictional.every(book => book.autor.includes('ficticio') && book.sinopsis.includes('Libro ficticio')));
 });
 
 test('large catalogs create additional shelves without omitting or duplicating books', () => {
