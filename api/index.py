@@ -1400,7 +1400,7 @@ def generate_with_ai():
             "Usa el ISBN para desambiguar cuando esté presente. No inventes datos específicos si no estás seguro; "
             "si no puedes confirmar el autor, déjalo vacío."
         )
-        max_tokens = 500
+        max_tokens = 1_200
         ai_messages = [{"role": "user", "content": prompt}]
     elif kind == "material":
         course = normalize_course(text_field(data, "curso", required=True, maximum=60))
@@ -1437,7 +1437,7 @@ def generate_with_ai():
             '"puntos":["5 ideas o estrategias concretas"],"preguntas":["5 preguntas para practicar"]}. '
             "Usa español claro y responde directamente la pregunta."
         )
-        max_tokens = 1_500
+        max_tokens = 2_500
         ai_messages = [
             {"role": "system", "content": system_context},
             {"role": "user", "content": prompt},
@@ -1460,7 +1460,7 @@ def generate_with_ai():
         history = list(
             db.prestamos.find({"usuario_id": g.current_user["_id"]})
             .sort("prestado_en", DESCENDING)
-            .limit(20)
+            .limit(10)
         )
         read_ids = {item.get("libro_id") for item in history}
         available = [
@@ -1469,7 +1469,8 @@ def generate_with_ai():
             if int(book.get("ejemplares_total", 1)) - active_counts.get(book["_id"], 0) > 0
         ]
         unread = [book for book in available if book["_id"] not in read_ids]
-        candidates = (unread if len(unread) >= 3 else available)[:60]
+        # Groq's free tier caps requests at 8k tokens per minute; keep the catalog excerpt compact.
+        candidates = (unread if len(unread) >= 3 else available)[:40]
         if not candidates:
             raise ApiError("No hay libros disponibles para recomendar ahora.", 409, "no_available_books")
 
@@ -1483,7 +1484,7 @@ def generate_with_ai():
                     "titulo": serialized["titulo"],
                     "autor": serialized["autor"],
                     "area": serialized["area"],
-                    "sinopsis": serialized["sinopsis"][:700],
+                    "sinopsis": serialized["sinopsis"][:220],
                     "disponibles": serialized["disponibles"],
                 }
             )
@@ -1506,7 +1507,7 @@ def generate_with_ai():
             "usa el historial únicamente para evitar repeticiones y mejorar la selección. Contexto:\n"
             + json.dumps(context, ensure_ascii=False)
         )
-        max_tokens = 900
+        max_tokens = 2_000
         ai_messages = [{"role": "user", "content": prompt}]
     question_reserved = False
     question_key = ""
@@ -1543,12 +1544,18 @@ def generate_with_ai():
         from groq import Groq
 
         client = Groq(api_key=api_key)
+        options: dict[str, Any] = {}
+        if "gpt-oss" in model:
+            # Reasoning models spend completion tokens thinking before the JSON;
+            # without a low effort they can exhaust the budget and return 400.
+            options["reasoning_effort"] = "low"
         response = client.chat.completions.create(
             model=model,
             max_completion_tokens=max_tokens,
             response_format={"type": "json_object"},
             temperature=0.2,
             messages=ai_messages,
+            **options,
         )
         content = response.choices[0].message.content or ""
         generated = extract_json(content)
