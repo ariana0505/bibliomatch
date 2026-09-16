@@ -35,7 +35,7 @@ def test_3d_catalog_metadata_keeps_all_areas_and_borrowed_titles(client, db):
     assert book["titulo"] == "Book 250" and book["disponibles"] == 0
     assert "foto" not in book and "sinopsis" not in book
     detail = client.get(f"/api/libros/{book['id']}").get_json()["libro"]
-    assert detail["sinopsis"] == "Full description" and detail["foto"] == "large-cover-data"
+    assert detail["sinopsis"] == "Full description" and detail["foto"].startswith(f"/portadas/{book['id']}?v=")
 
 
 @pytest.mark.parametrize("legacy", [False, True])
@@ -122,3 +122,56 @@ def test_failed_approval_keeps_request_pending(client, db):
                       json={"accion": "aprobar", "vence_en": (date.today() + timedelta(days=10)).isoformat()})
     assert response.status_code == 409
     assert db.solicitudes.find_one({"_id": request_id})["estado"] == "pendiente"
+
+
+def test_stored_covers_are_served_by_reference_not_inline(client, db):
+    user = create_user(db, "coverreader")
+    login(client, user["apodo"])
+    png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    stored = db.libros.insert_one({"titulo": "Con portada", "area": "LIT", "ejemplares_total": 1, "foto": png, "creado_en": backend.utcnow()}).inserted_id
+    linked = db.libros.insert_one({"titulo": "Enlace", "area": "LIT", "ejemplares_total": 1, "foto": "https://covers.openlibrary.org/b/id/1-M.jpg"}).inserted_id
+    db.libros.insert_one({"titulo": "Sin portada", "area": "LIT", "ejemplares_total": 1})
+    books = {book["titulo"]: book for book in client.get("/api/libros").get_json()["libros"]}
+    assert books["Con portada"]["foto"] == f"/portadas/{stored}?v=" + books["Con portada"]["foto"].rsplit("=", 1)[1]
+    assert "base64" not in books["Con portada"]["foto"]
+    assert books["Enlace"]["foto"] == "https://covers.openlibrary.org/b/id/1-M.jpg"
+    assert books["Sin portada"]["foto"] == ""
+    response = client.get(f"/portadas/{stored}")
+    assert response.status_code == 200 and response.content_type == "image/png"
+    assert response.data.startswith(b"\x89PNG") and "max-age" in response.headers["Cache-Control"]
+    assert client.get(f"/portadas/{linked}").status_code == 302
+    assert client.get(f"/portadas/{backend.ObjectId()}").status_code == 404
+
+
+def test_editing_without_a_new_cover_keeps_the_stored_one(client, db):
+    staff = create_user(db, "keeper", role="bibliotecario")
+    csrf = login(client, staff["apodo"])
+    png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    oid = db.libros.insert_one({"titulo": "Editable", "area": "LIT", "ejemplares_total": 1, "foto": png}).inserted_id
+    response = mutate(client, "PUT", f"/api/libros/{oid}", csrf, json={"titulo": "Editado", "area": "LIT", "ejemplares_total": 2})
+    assert response.status_code == 200, response.get_json()
+    assert db.libros.find_one({"_id": oid})["foto"] == png
+
+
+def test_students_cannot_exceed_request_and_loan_limits(client, db):
+    student = create_user(db, "avid")
+    staff = create_user(db, "desk", role="bibliotecario")
+    books = [db.libros.insert_one({"titulo": f"Libro {i}", "area": "LIT", "ejemplares_total": 5}).inserted_id for i in range(6)]
+    csrf = login(client, student["apodo"])
+    for oid in books[:3]:
+        assert mutate(client, "POST", "/api/solicitudes", csrf, json={"libro_id": str(oid)}).status_code == 201
+    blocked = mutate(client, "POST", "/api/solicitudes", csrf, json={"libro_id": str(books[3])})
+    assert blocked.status_code == 409 and blocked.get_json()["code"] == "request_limit"
+    due = (date.today() + timedelta(days=14)).isoformat()
+    staff_csrf = login(client, staff["apodo"])
+    for oid in books[:3]:
+        assert mutate(client, "POST", "/api/prestamos", staff_csrf, json={"libro_id": str(oid), "apodo": "avid", "vence_en": due}).status_code == 201
+    fourth = mutate(client, "POST", "/api/prestamos", staff_csrf, json={"libro_id": str(books[4]), "apodo": "avid", "vence_en": due})
+    assert fourth.status_code == 409 and fourth.get_json()["code"] == "loan_limit"
+    csrf = login(client, student["apodo"])
+    for oid in books[:3]:
+        db.solicitudes.update_many({"libro_id": oid}, {"$set": {"estado": "aprobada"}})
+    again = mutate(client, "POST", "/api/solicitudes", csrf, json={"libro_id": str(books[5])})
+    assert again.status_code == 409 and again.get_json()["code"] == "loan_limit"
+    own = client.get("/api/solicitudes?propios=1").get_json()["solicitudes"]
+    assert {item["estado"] for item in own} == {"aprobada"}

@@ -95,7 +95,7 @@ function renderBook(book) {
   $('detail-count').textContent = book.disponibles > 0 ? `${book.disponibles} de ${book.ejemplares_total} ejemplares disponibles` : 'Sin ejemplares disponibles';
   $('detail-location').textContent = book.ubicacion || AREAS[sectionFor(book)];
   const cover = $('detail-cover'); cover.replaceChildren();
-  if (book.foto && /^(https:\/\/covers\.openlibrary\.org\/|data:image\/(png|jpeg|webp);base64,)/.test(book.foto)) {
+  if (book.foto && /^(https:\/\/covers\.openlibrary\.org\/|\/portadas\/[a-f0-9]{24}\?v=[a-f0-9]+$|data:image\/(png|jpeg|webp);base64,)/.test(book.foto)) {
     const img = document.createElement('img'); img.src = book.foto; img.alt = `Portada de ${book.titulo}`; cover.append(img);
   } else {
     const title = document.createElement('strong'); title.textContent = book.titulo;

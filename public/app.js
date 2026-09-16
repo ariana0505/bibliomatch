@@ -440,11 +440,22 @@ function openBookForm(book = null) {
   form.elements.sinopsis.value = book?.sinopsis || "";
   form.elements.ubicacion.value = book?.ubicacion || "";
   form.elements.donante.value = book?.donante || "";
-  form.elements.foto.value = book?.foto || "";
+  form.elements.foto.value = "";
   byId("book-form-title").textContent = book ? "Editar libro" : "Registrar libro";
   byId("book-ai-button").classList.toggle("hidden", !state.aiAvailable);
   setFormError("book-form");
   byId("book-form-dialog").showModal();
+}
+
+function openApproveForm(requestId) {
+  const item = state.requests.find((request) => request.id === requestId);
+  const form = byId("approve-form");
+  form.elements.solicitud_id.value = requestId;
+  byId("approve-summary").textContent = item ? `${item.titulo} · ${item.apodo}` : "";
+  byId("approve-due").min = new Date().toISOString().slice(0, 10);
+  byId("approve-due").value = futureDate(30);
+  setFormError("approve-form");
+  byId("approve-dialog").showModal();
 }
 
 function openLoanForm() {
@@ -458,9 +469,9 @@ function openLoanForm() {
 }
 
 async function loadLoanBooks() {
-  const result = await api("/api/libros?por_pagina=250&disponible=1");
+  const result = await api("/api/libros?por_pagina=250&disponible=1&formato=3d");
   for (let page = 2; page <= result.paginas; page += 1) {
-    const next = await api(`/api/libros?por_pagina=250&disponible=1&pagina=${page}`);
+    const next = await api(`/api/libros?por_pagina=250&disponible=1&formato=3d&pagina=${page}`);
     result.libros.push(...next.libros);
   }
   return result;
@@ -542,11 +553,13 @@ async function loadProfile() {
 function renderProfile() {
   const activeLoans = state.loans.filter((item) => item.estado === "activo");
   const pending = state.requests.filter((item) => item.estado === "pendiente");
+  const history = state.requests.filter((item) => item.estado !== "pendiente").slice(0, 10);
+  const REQUEST_STATES = { aprobada: ["Aprobada", "success"], rechazada: ["Rechazada", "warning"], cancelada: ["Cancelada", "neutral"] };
   byId("profile-view").innerHTML = `
     <div class="page-heading"><div class="profile-header"><div class="avatar">${escapeHtml(state.user.apodo[0].toUpperCase())}</div><div><h1>${escapeHtml(state.user.apodo)}</h1><p class="muted">${escapeHtml(state.user.rol)}${state.user.es_anfitrion ? " · anfitriona" : ""}${state.user.grado ? ` · ${escapeHtml(state.user.grado)} ${escapeHtml(state.user.seccion || "")}` : ""}</p></div></div><div class="button-row"><button class="ghost-button" type="button" data-action="change-password">Cambiar contraseña</button>${!isAdmin() ? '<button class="danger-button" type="button" data-action="delete-account">Eliminar cuenta</button>' : ""}<button class="danger-button" type="button" data-action="logout">Cerrar sesión</button></div></div>
     <div class="profile-grid">
       <section class="profile-card"><div class="section-heading"><h2>Mis préstamos</h2><span class="badge neutral">${activeLoans.length}</span></div>${activeLoans.length ? `<div class="item-list">${activeLoans.map((item) => `<div class="list-item"><span>${escapeHtml(item.titulo)}</span><span class="${item.vencido ? "badge warning" : "muted"}">${item.vencido ? "Vencido" : `hasta ${formatDate(item.vence_en)}`}</span></div>`).join("")}</div>` : '<p class="muted">No tienes préstamos activos.</p>'}</section>
-      <section class="profile-card"><div class="section-heading"><h2>Mis solicitudes</h2><span class="badge neutral">${pending.length}</span></div>${pending.length ? `<div class="item-list">${pending.map((item) => `<div class="list-item"><span>${escapeHtml(item.titulo)}</span><button class="danger-button" type="button" data-action="cancel-request" data-id="${item.id}">Cancelar</button></div>`).join("")}</div>` : '<p class="muted">No tienes solicitudes pendientes.</p>'}</section>
+      <section class="profile-card"><div class="section-heading"><h2>Mis solicitudes</h2><span class="badge neutral">${pending.length}</span></div>${pending.length ? `<div class="item-list">${pending.map((item) => `<div class="list-item"><span>${escapeHtml(item.titulo)}</span><button class="danger-button" type="button" data-action="cancel-request" data-id="${item.id}">Cancelar</button></div>`).join("")}</div>` : '<p class="muted">No tienes solicitudes pendientes.</p>'}${history.length ? `<h3 class="muted">Historial</h3><div class="item-list">${history.map((item) => { const [label, tone] = REQUEST_STATES[item.estado] || [item.estado, "neutral"]; return `<div class="list-item"><span>${escapeHtml(item.titulo)}<br><small class="muted">${formatDate(item.resuelto_en || item.creado_en)}</small></span><span class="badge ${tone}">${label}</span></div>`; }).join("")}</div>` : ""}</section>
     </div>
     <section class="profile-card"><div class="section-heading"><h2>Mi aprendizaje</h2></div>${state.progress.length ? `<div class="item-list">${state.progress.map((item) => `<div class="list-item"><span>${escapeHtml(item.curso)}</span><strong>${escapeHtml(item.estilo ? item.estilo.split("").map((letter) => STYLE_NAMES[letter]).join(" + ") : "Sin test")}${item.mejor_puntaje != null ? ` · ${item.mejor_puntaje}/${item.total}` : ""}</strong></div>`).join("")}</div>` : '<p class="muted">Completa un test en Aprender para guardar tu resultado.</p>'}</section>
     ${state.user.rol === "estudiante" ? `<section class="profile-card"><div class="section-heading"><h2>Solicitar ser administrador</h2></div><p class="muted">La anfitriona revisará tu solicitud. Explica por qué quieres ayudar a administrar BiblioMatch.</p><form id="admin-request-form" class="stack"><label for="admin-request-reason">Motivo de la solicitud</label><textarea id="admin-request-reason" name="motivo" rows="5" minlength="20" maxlength="1000" placeholder="Cuéntanos por qué quieres ser administrador y cómo ayudarías a la biblioteca…" required></textarea><button class="primary" type="submit">Enviar solicitud por correo</button><p class="field-help">Se abrirá tu aplicación de correo con el mensaje dirigido a penaariana075@gmail.com.</p><p class="form-error" data-error-for="admin-request-form" role="alert"></p></form></section>` : ""}
@@ -610,7 +623,7 @@ async function handleAction(button) {
       await loadBooks({ q: "", area: "", disponible: false, orden: "titulo" });
     }
     if (action === "open-book") await openBook(id);
-    if (action === "edit-book") { byId("book-dialog").close(); openBookForm(state.books.find((book) => book.id === id)); }
+    if (action === "edit-book") { byId("book-dialog").close(); openBookForm(state.selectedBook?.id === id ? state.selectedBook : state.books.find((book) => book.id === id)); }
     if (action === "request-book") {
       button.disabled = true;
       await api("/api/solicitudes", { method: "POST", body: { libro_id: id } });
@@ -630,11 +643,7 @@ async function handleAction(button) {
       showToast("Devolución registrada.");
       await loadManagement();
     }
-    if (action === "approve-request") {
-      await api(`/api/solicitudes/${id}/resolver`, { method: "POST", body: { accion: "aprobar", vence_en: futureDate(30) } });
-      showToast("Solicitud aprobada; préstamo creado por 30 días.");
-      await loadManagement();
-    }
+    if (action === "approve-request") openApproveForm(id);
     if (action === "reject-request" && confirm("¿Rechazar esta solicitud?")) {
       await api(`/api/solicitudes/${id}/resolver`, { method: "POST", body: { accion: "rechazar" } });
       showToast("Solicitud rechazada.");
@@ -886,6 +895,7 @@ byId("book-form").addEventListener("submit", async (event) => {
   delete values.foto_archivo;
   values.ejemplares_total = Number(values.ejemplares_total);
   const id = values.id;
+  if (id && !values.foto) delete values.foto; // keep the current cover when editing
   delete values.id;
   const submit = form.querySelector("button[type=submit]");
   submit.disabled = true;
@@ -911,6 +921,22 @@ byId("loan-form").addEventListener("submit", async (event) => {
     showToast("Préstamo registrado.");
     await loadManagement();
   } catch (error) { setFormError("loan-form", error.message); }
+  finally { submit.disabled = false; }
+});
+
+byId("approve-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setFormError("approve-form");
+  const form = event.currentTarget;
+  const submit = form.querySelector("button[type=submit]");
+  submit.disabled = true;
+  try {
+    const values = Object.fromEntries(new FormData(form));
+    await api(`/api/solicitudes/${values.solicitud_id}/resolver`, { method: "POST", body: { accion: "aprobar", vence_en: values.vence_en } });
+    byId("approve-dialog").close();
+    showToast(`Solicitud aprobada; préstamo hasta el ${formatDate(values.vence_en)}.`);
+    await loadManagement();
+  } catch (error) { setFormError("approve-form", error.message); }
   finally { submit.disabled = false; }
 });
 

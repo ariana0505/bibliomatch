@@ -149,6 +149,18 @@
     </form>
   </dialog>
 
+  <dialog id="approve-dialog" class="dialog" aria-labelledby="approve-title">
+    <form id="approve-form" class="stack">
+      <div class="dialog-heading"><h2 id="approve-title">Aprobar solicitud</h2><button class="icon-button" type="button" data-close-dialog="approve-dialog" aria-label="Cerrar">✕</button></div>
+      <input type="hidden" name="solicitud_id">
+      <p id="approve-summary" class="muted"></p>
+      <label for="approve-due">Fecha de devolución</label>
+      <input id="approve-due" name="vence_en" type="date" required>
+      <button class="primary" type="submit">Aprobar y registrar préstamo</button>
+      <p class="form-error" data-error-for="approve-form" role="alert"></p>
+    </form>
+  </dialog>
+
   <dialog id="password-dialog" class="dialog" aria-labelledby="password-title">
     <form id="password-form" class="stack">
       <div class="dialog-heading"><h2 id="password-title">Cambiar contraseña</h2><button class="icon-button" type="button" data-close-dialog="password-dialog" aria-label="Cerrar">✕</button></div>
