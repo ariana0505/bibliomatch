@@ -7,7 +7,8 @@ Aplicación web para administrar una biblioteca escolar: catálogo, ejemplares, 
 - Registro e inicio de sesión con cookie HttpOnly y protección CSRF.
 - Roles verificados en el servidor: estudiante, bibliotecario y administrador.
 - Catálogo con búsqueda, áreas, disponibilidad y varios ejemplares por título.
-- Flujo completo de solicitud, aprobación, préstamo y devolución.
+- Flujo completo de solicitud, aprobación (con fecha de devolución elegida por el bibliotecario), préstamo y devolución. Cada estudiante puede tener hasta 3 préstamos activos y 3 solicitudes pendientes; el perfil muestra el historial de solicitudes con su estado.
+- Las portadas se guardan en MongoDB pero se sirven por `/portadas/<id>` con caché privada; los listados solo envían la referencia.
 - Opiniones persistentes y progreso de aprendizaje por curso.
 - Gestión de usuarios y estadísticas.
 - Recomendaciones de lectura con IA, limitadas a libros disponibles del catálogo y adaptadas al grado, intereses e historial.

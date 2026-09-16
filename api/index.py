@@ -16,7 +16,7 @@ from urllib.parse import unquote
 from zoneinfo import ZoneInfo
 
 from bson import ObjectId
-from flask import Flask, g, jsonify, request, send_from_directory, session
+from flask import Flask, Response, g, jsonify, redirect, request, send_from_directory, session
 from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.errors import DuplicateKeyError, PyMongoError
 from werkzeug.exceptions import HTTPException
@@ -34,6 +34,9 @@ ROOT = Path(__file__).resolve().parent.parent / "public"
 ROLES = {"estudiante", "bibliotecario", "admin"}
 AREAS = {"MAT", "CIE", "TEC", "LIT", "HIS", "ART", "REF"}
 AI_QUESTION_DAILY_LIMIT = 8
+MAX_ACTIVE_LOANS = 3
+MAX_PENDING_REQUESTS = 3
+COVER_MAX_AGE = 60 * 60 * 24
 SCHOOL_TIMEZONE = ZoneInfo("America/Lima")
 APODO_RE = re.compile(r"^[a-zA-Z0-9_.-]{3,24}$")
 ISBN_RE = re.compile(r"^[0-9Xx-]{10,17}$")
@@ -340,6 +343,19 @@ def user_json(user: dict[str, Any], *, private: bool = False) -> dict[str, Any]:
     return result
 
 
+def cover_reference(book: dict[str, Any]) -> str:
+    """Public reference for a cover: HTTPS URLs pass through; stored images are
+    served by the cover endpoint so listings never carry base64 payloads."""
+    photo = book.get("foto") or ""
+    if not photo:
+        return ""
+    if isinstance(photo, str) and SAFE_IMAGE_URL_RE.match(photo):
+        return photo
+    version = iso(book.get("actualizado_en") or book.get("creado_en")) or ""
+    stamp = hashlib.sha1(version.encode()).hexdigest()[:8]
+    return f"/portadas/{book['_id']}?v={stamp}"
+
+
 def book_json(book: dict[str, Any], active_count: int = 0) -> dict[str, Any]:
     total = int(book.get("ejemplares_total", 1))
     return {
@@ -349,7 +365,7 @@ def book_json(book: dict[str, Any], active_count: int = 0) -> dict[str, Any]:
         "autor": book.get("autor", ""),
         "area": book.get("area", "LIT"),
         "sinopsis": book.get("sinopsis", ""),
-        "foto": book.get("foto", ""),
+        "foto": cover_reference(book),
         "ubicacion": book.get("ubicacion", ""),
         "donante": book.get("donante", ""),
         "ejemplares_total": total,
@@ -521,6 +537,8 @@ def create_loan_in_transaction(db, book, user, due, mongo_session):
     assert_book_available(db, book, mongo_session)
     if db.prestamos.find_one({"libro_id": book["_id"], "usuario_id": user["_id"], "estado": "activo"}, session=mongo_session):
         raise ApiError("Este usuario ya tiene ese libro prestado.", 409, "duplicate_loan")
+    if db.prestamos.count_documents({"usuario_id": user["_id"], "estado": "activo"}, session=mongo_session) >= MAX_ACTIVE_LOANS:
+        raise ApiError(f"Este usuario ya tiene {MAX_ACTIVE_LOANS} préstamos activos.", 409, "loan_limit")
     document = {
         "libro_id": book["_id"],
         "titulo": book.get("titulo", ""),
@@ -827,6 +845,12 @@ def list_books():
         }}}}},
         {"$addFields": {"disponibles": {"$max": [0, {"$subtract": [{"$ifNull": ["$ejemplares_total", 1]}, "$prestados"]}]}}},
         {"$project": {"circulacion": 0}},
+        # Stored images stay in the database; the client receives a reference.
+        {"$addFields": {"foto": {"$cond": [
+            {"$regexMatch": {"input": {"$ifNull": ["$foto", ""]}, "regex": "^https://"}},
+            "$foto",
+            {"$cond": [{"$ne": [{"$ifNull": ["$foto", ""]}, ""]}, "stored", ""]},
+        ]}}},
     ]
     if request.args.get("disponible") == "1":
         pipeline.append({"$match": {"disponibles": {"$gt": 0}}})
@@ -864,6 +888,25 @@ def get_book(book_id: str):
     if not book:
         raise ApiError("Libro no encontrado.", 404, "not_found")
     return jsonify(libro=book_json(book, active_loan_count(db, oid)))
+
+
+@app.get("/portadas/<book_id>")
+@auth_required
+def book_cover(book_id: str):
+    oid = validate_object_id(book_id, "ID del libro")
+    book = get_db().libros.find_one({"_id": oid}, {"foto": 1})
+    photo = (book or {}).get("foto") or ""
+    if not photo:
+        raise ApiError("Portada no encontrada.", 404, "not_found")
+    if SAFE_IMAGE_URL_RE.match(photo):
+        return redirect(photo, code=302)
+    match = IMAGE_RE.fullmatch(photo)
+    if not match:
+        raise ApiError("Portada no encontrada.", 404, "not_found")
+    mimetype = photo[5:photo.index(";")]
+    response = Response(base64.b64decode(match.group(1)), mimetype=mimetype)
+    response.headers["Cache-Control"] = f"private, max-age={COVER_MAX_AGE}"
+    return response
 
 
 @app.post("/api/libros")
@@ -999,6 +1042,12 @@ def create_request():
         {"libro_id": book_id, "usuario_id": g.current_user["_id"], "estado": "pendiente"}
     ):
         raise ApiError("Ya tienes una solicitud pendiente para este libro.", 409, "duplicate_request")
+    if db.prestamos.find_one({"libro_id": book_id, "usuario_id": g.current_user["_id"], "estado": "activo"}):
+        raise ApiError("Ya tienes este libro prestado.", 409, "duplicate_loan")
+    if db.solicitudes.count_documents({"usuario_id": g.current_user["_id"], "estado": "pendiente"}) >= MAX_PENDING_REQUESTS:
+        raise ApiError(f"Solo puedes tener {MAX_PENDING_REQUESTS} solicitudes pendientes a la vez.", 409, "request_limit")
+    if db.prestamos.count_documents({"usuario_id": g.current_user["_id"], "estado": "activo"}) >= MAX_ACTIVE_LOANS:
+        raise ApiError(f"Devuelve un libro antes de solicitar otro: el máximo es {MAX_ACTIVE_LOANS} préstamos activos.", 409, "loan_limit")
     document = {
         "libro_id": book_id,
         "titulo": book.get("titulo", ""),
