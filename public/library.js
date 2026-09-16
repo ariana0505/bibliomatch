@@ -1,6 +1,6 @@
 import * as THREE from './vendor/three.module.mjs';
 import { movePlayer, targetBook } from './library-controls.mjs';
-import { demoBooks } from './library-demo.mjs';
+import { demoBooks, DEMO_SHELF_COLUMNS } from './library-demo.mjs';
 import { AREAS, BAY_LENGTH, planLibrary, bayAt, findBooks, loadAllBooks, sectionFor } from './library-layout.mjs';
 import { createWorld } from './library-world.mjs';
 
@@ -219,7 +219,7 @@ $('scene').addEventListener('webglcontextlost', event => {
 function installCatalog(next) {
   const oldBay = layout && layout.bays[bayAt(layout, camera.position.z)];
   const relativeZ = oldBay ? camera.position.z + oldBay.offset : 3.8;
-  const nextLayout = planLibrary(next);
+  const nextLayout = planLibrary(next, {columns: demo ? DEMO_SHELF_COLUMNS : 6});
   if (oldBay) {
     const oldSection = layout.sections.find(section => section.code === oldBay.code);
     const section = nextLayout.sections.find(section => section.code === oldBay.code);

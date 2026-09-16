@@ -4,22 +4,26 @@ export const BAY_CAPACITY = 48;
 export const sectionFor = book => book.disponibles > 0 ? (Object.hasOwn(AREAS, book.area) && book.area !== 'PRE' ? book.area : 'REF') : 'PRE';
 export const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-export function planLibrary(books) {
+export function planLibrary(books, {columns = 6} = {}) {
+  if (!Number.isInteger(columns) || columns < 1 || columns > 16) throw new Error('La cantidad de libros por balda no es válida.');
+  const capacity = columns * 8;
   const unique = [...new Map(books.map(book => [book.id, book])).values()];
   const bays = [], positions = new Map(), sections = [];
   for (const [code, name] of Object.entries(AREAS)) {
     const items = unique.filter(book => sectionFor(book) === code).sort((a,b) => a.titulo.localeCompare(b.titulo,'es') || a.id.localeCompare(b.id));
     const firstBay = bays.length;
-    const count = Math.max(1, Math.ceil(items.length / BAY_CAPACITY));
+    const count = Math.max(1, Math.ceil(items.length / capacity));
     sections.push({code, name, count:items.length, firstBay, bays:count});
     for (let part = 0; part < count; part++) {
       const index = bays.length, offset = index * BAY_LENGTH;
-      const bay = {index, code, name, offset, label:`${name}${count > 1 ? ` · ${part + 1}/${count}` : ''}`, books:items.slice(part * BAY_CAPACITY, (part + 1) * BAY_CAPACITY)};
+      const bay = {index, code, name, offset, label:`${name}${count > 1 ? ` · ${part + 1}/${count}` : ''}`, books:items.slice(part * capacity, (part + 1) * capacity)};
       bay.books.forEach((book, slot) => {
         const side = slot % 2 === 0 ? -1 : 1;
         const local = Math.floor(slot / 2), row = local % 4, col = Math.floor(local / 4);
         const height = .39 + (slot % 3) * .045;
-        positions.set(book.id, {book, bay:index, side, height, x:side * 2.07, y:.30 + row * .58 + height / 2, z:-2.9 + (col + .5) * 3.8 / 6 - offset});
+        const shelfStart = columns > 6 ? -3.3 : -2.9;
+        const shelfWidth = columns > 6 ? 4.6 : 3.8;
+        positions.set(book.id, {book, bay:index, side, height, x:side * 2.07, y:.30 + row * .58 + height / 2, z:shelfStart + (col + .5) * shelfWidth / columns - offset});
       });
       bays.push(bay);
     }

@@ -932,7 +932,7 @@ def delete_book(book_id: str):
 def list_loans():
     db = get_db()
     query: dict[str, Any] = {}
-    if g.current_user.get("rol") == "estudiante":
+    if g.current_user.get("rol") == "estudiante" or request.args.get("propios") == "1":
         query["usuario_id"] = g.current_user["_id"]
     elif request.args.get("estado") in {"activo", "devuelto"}:
         query["estado"] = request.args["estado"]
@@ -977,7 +977,7 @@ def return_loan(loan_id: str):
 def list_requests():
     db = get_db()
     query: dict[str, Any] = {}
-    if g.current_user.get("rol") == "estudiante":
+    if g.current_user.get("rol") == "estudiante" or request.args.get("propios") == "1":
         query["usuario_id"] = g.current_user["_id"]
     elif request.args.get("estado") in {"pendiente", "aprobada", "rechazada", "cancelada"}:
         query["estado"] = request.args["estado"]

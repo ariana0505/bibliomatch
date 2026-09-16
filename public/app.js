@@ -528,7 +528,7 @@ async function loadProfile() {
   const view = byId("profile-view");
   view.innerHTML = '<div class="loading">Cargando perfil…</div>';
   try {
-    const [loans, requests, progress] = await Promise.all([api("/api/prestamos"), api("/api/solicitudes"), api("/api/progreso")]);
+    const [loans, requests, progress] = await Promise.all([api("/api/prestamos?propios=1"), api("/api/solicitudes?propios=1"), api("/api/progreso")]);
     state.loans = loans.prestamos;
     state.requests = requests.solicitudes;
     state.progress = progress.progreso;
