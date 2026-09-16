@@ -70,6 +70,10 @@ const initialState = () => ({
   loans: [],
   requests: [],
   users: [],
+  userFilters: { q: "", rol: "", grado: "", activo: "" },
+  userTotal: 0,
+  userPage: 1,
+  userPages: 1,
   progress: [],
   stats: null,
   catalogFilters: { q: "", area: "", disponible: false, orden: "titulo" },
@@ -482,13 +486,15 @@ async function loadManagement() {
   view.innerHTML = '<div class="loading">Cargando gestión…</div>';
   try {
     const calls = [loadLoanBooks(), api("/api/prestamos?estado=activo"), api("/api/solicitudes?estado=pendiente"), api("/api/estadisticas")];
-    if (isAdmin()) calls.push(api("/api/usuarios"));
+    if (isAdmin()) calls.push(api(`/api/usuarios?${userQuery()}`));
     const [books, loans, requests, stats, users] = await Promise.all(calls);
     state.books = books.libros;
     state.loans = loans.prestamos;
     state.requests = requests.solicitudes;
     state.stats = stats;
     state.users = users?.usuarios || [];
+    state.userTotal = users?.total || 0;
+    state.userPages = users?.paginas || 1;
     renderManagement();
   } catch (error) {
     view.innerHTML = `<div class="error-panel">${escapeHtml(error.message)}</div>`;
@@ -508,7 +514,43 @@ function renderManagement() {
     <section class="management-section"><div class="section-heading"><h2>Solicitudes pendientes</h2><span class="badge neutral">${state.requests.length}</span></div>${requestTable()}</section>
     <section class="management-section"><div class="section-heading"><h2>Préstamos activos</h2><span class="badge neutral">${state.loans.length}</span></div>${loanTable()}</section>
     <section class="management-section"><div class="section-heading"><h2>Libros más leídos</h2></div>${topBooks()}</section>
-    ${isAdmin() ? `<section class="management-section"><div class="section-heading"><h2>Usuarios</h2><span class="badge neutral">${state.users.length}</span></div>${userTable()}</section>` : ""}`;
+    ${isAdmin() ? `<section class="management-section"><div class="section-heading"><h2>Usuarios</h2><span class="badge neutral">${state.userTotal}</span></div>${userFilterForm()}${userTable()}${userPagination()}</section>` : ""}`;
+}
+
+function userQuery() {
+  const params = new URLSearchParams();
+  params.set("pagina", String(state.userPage));
+  for (const [key, value] of Object.entries(state.userFilters)) if (value) params.set(key, value);
+  return params.toString();
+}
+
+async function loadUsers(filters = null, page = state.userPage) {
+  if (filters) { state.userFilters = { ...state.userFilters, ...filters }; page = 1; }
+  state.userPage = page;
+  const data = await api(`/api/usuarios?${userQuery()}`);
+  state.users = data.usuarios;
+  state.userTotal = data.total;
+  state.userPages = data.paginas;
+  if (page > data.paginas) return loadUsers(null, data.paginas);
+  renderManagement();
+  byId("user-search")?.focus();
+}
+
+function userFilterForm() {
+  const f = state.userFilters;
+  const option = (value, label, current) => `<option value="${value}" ${current === value ? "selected" : ""}>${label}</option>`;
+  return `<form id="user-filter" class="toolbar user-toolbar" role="search">
+    <div class="search-wrap"><label class="hidden" for="user-search">Buscar usuario</label><input id="user-search" name="q" value="${escapeHtml(f.q)}" placeholder="Apodo" maxlength="24"></div>
+    <label class="hidden" for="user-role">Rol</label><select id="user-role" name="rol">${option("", "Todos los roles", f.rol)}${["estudiante", "bibliotecario", "admin"].map((role) => option(role, role, f.rol)).join("")}</select>
+    <label class="hidden" for="user-grade">Grado</label><select id="user-grade" name="grado">${option("", "Todos los grados", f.grado)}${["1°", "2°", "3°", "4°", "5°"].map((grade) => option(grade, grade, f.grado)).join("")}</select>
+    <label class="hidden" for="user-state">Estado</label><select id="user-state" name="activo">${option("", "Activos e inactivos", f.activo)}${option("1", "Solo activos", f.activo)}${option("0", "Solo inactivos", f.activo)}</select>
+    <div class="filter-actions"><button class="primary" type="submit">Buscar</button><button class="ghost-button" type="button" data-action="clear-users">Limpiar</button></div>
+  </form>`;
+}
+
+function userPagination() {
+  if (state.userPages <= 1) return "";
+  return `<nav class="button-row" aria-label="Páginas de usuarios"><button type="button" class="secondary" data-action="users-previous" ${state.userPage <= 1 ? "disabled" : ""}>Anterior</button><span>Página ${state.userPage} de ${state.userPages}</span><button type="button" class="secondary" data-action="users-next" ${state.userPage >= state.userPages ? "disabled" : ""}>Siguiente</button></nav>`;
 }
 
 function requestTable() {
@@ -527,6 +569,7 @@ function topBooks() {
 }
 
 function userTable() {
+  if (!state.users.length) return '<div class="empty-state">No hay usuarios que coincidan con la búsqueda.</div>';
   return `<div class="table-wrap"><table><thead><tr><th>Apodo</th><th>Grado</th><th>Rol</th><th>Acciones</th></tr></thead><tbody>${state.users.map((user) => {
     const protectedAdmin = user.rol === "admin" && !isHost();
     const locked = user.id === state.user.id || user.es_anfitrion || protectedAdmin;
@@ -619,6 +662,9 @@ async function handleAction(button) {
     if (action === "catalog-previous") await loadBooks(null, Math.max(1, state.catalogPage - 1));
     if (action === "catalog-next") await loadBooks(null, Math.min(state.catalogPages, state.catalogPage + 1));
     if (action === "new-book") openBookForm();
+    if (action === "users-previous") await loadUsers(null, Math.max(1, state.userPage - 1));
+    if (action === "users-next") await loadUsers(null, Math.min(state.userPages, state.userPage + 1));
+    if (action === "clear-users") await loadUsers({ q: "", rol: "", grado: "", activo: "" });
     if (action === "clear-catalog") {
       await loadBooks({ q: "", area: "", disponible: false, orden: "titulo" });
     }
@@ -706,7 +752,7 @@ document.addEventListener("click", async (event) => {
 });
 
 document.addEventListener("change", async (event) => {
-  if (event.target.closest("#catalog-filter") && event.target.matches("select, input[type=checkbox]")) {
+  if (event.target.closest("#catalog-filter, #user-filter") && event.target.matches("select, input[type=checkbox]")) {
     event.target.form.requestSubmit();
     return;
   }
@@ -751,6 +797,14 @@ document.addEventListener("submit", async (event) => {
       submit.disabled = false;
       submit.textContent = "✨ Recomendarme libros";
     }
+    return;
+  }
+  if (form.id === "user-filter") {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(form));
+    try {
+      await loadUsers({ q: String(data.q || "").trim(), rol: String(data.rol || ""), grado: String(data.grado || ""), activo: String(data.activo || "") });
+    } catch (error) { showToast(error.message, true); }
     return;
   }
   if (form.id === "catalog-filter") {
@@ -857,17 +911,48 @@ byId("register-form").addEventListener("submit", async (event) => {
   } finally { submit.disabled = false; }
 });
 
-byId("book-photo").addEventListener("change", (event) => {
-  const file = event.target.files?.[0];
-  if (!file) return;
-  if (file.size > 750_000) {
-    setFormError("book-form", "La portada no puede superar 750 KB.");
-    event.target.value = "";
-    return;
+const COVER_MAX_BYTES = 750_000;
+const COVER_MAX_HEIGHT = 900;
+
+// Photos from a phone are several megabytes; a cover is displayed at a few
+// hundred pixels, so the browser shrinks and re-encodes it before uploading.
+async function compressCover(file) {
+  const bitmap = await createImageBitmap(file).catch(() => null);
+  if (!bitmap) throw new Error("No se pudo leer la imagen. Usa un archivo PNG, JPG o WebP.");
+  const scale = Math.min(1, COVER_MAX_HEIGHT / bitmap.height, (COVER_MAX_HEIGHT * 2) / bitmap.width);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#fff"; // transparent PNGs become white, not black, in JPEG
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  for (const quality of [0.86, 0.75, 0.62, 0.5]) {
+    const dataUrl = canvas.toDataURL("image/jpeg", quality);
+    if (dataUrl.length * 0.75 <= COVER_MAX_BYTES) return dataUrl;
   }
-  const reader = new FileReader();
-  reader.onload = () => { byId("book-form").elements.foto.value = reader.result; };
-  reader.readAsDataURL(file);
+  throw new Error("La portada sigue siendo demasiado grande; prueba con una imagen más pequeña.");
+}
+
+byId("book-photo").addEventListener("change", async (event) => {
+  const input = event.target;
+  const file = input.files?.[0];
+  const form = byId("book-form");
+  if (!file) return;
+  setFormError("book-form");
+  input.disabled = true;
+  try {
+    const original = file.size <= COVER_MAX_BYTES && ["image/png", "image/jpeg", "image/webp"].includes(file.type)
+      ? await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); })
+      : null;
+    form.elements.foto.value = original || await compressCover(file);
+    if (!original) showToast(`Portada ajustada a ${Math.round(form.elements.foto.value.length * 0.75 / 1024)} KB.`);
+  } catch (error) {
+    form.elements.foto.value = "";
+    input.value = "";
+    setFormError("book-form", error.message);
+  } finally { input.disabled = false; }
 });
 
 byId("book-ai-button").addEventListener("click", async () => {

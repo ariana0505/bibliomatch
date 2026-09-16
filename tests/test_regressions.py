@@ -175,3 +175,22 @@ def test_students_cannot_exceed_request_and_loan_limits(client, db):
     assert again.status_code == 409 and again.get_json()["code"] == "loan_limit"
     own = client.get("/api/solicitudes?propios=1").get_json()["solicitudes"]
     assert {item["estado"] for item in own} == {"aprobada"}
+
+
+def test_admin_user_directory_searches_filters_and_paginates(client, db):
+    admin = create_user(db, "boss", role="admin")
+    for index in range(7):
+        create_user(db, f"alumno{index}")
+    db.usuarios.update_many({"apodo": {"$in": ["alumno0", "alumno1"]}}, {"$set": {"grado": "5°"}})
+    db.usuarios.update_one({"apodo": "alumno2"}, {"$set": {"activo": False}})
+    create_user(db, "biblio", role="bibliotecario")
+    login(client, admin["apodo"])
+    everyone = client.get("/api/usuarios").get_json()
+    assert everyone["total"] == 9 and everyone["paginas"] == 1
+    page = client.get("/api/usuarios?por_pagina=4&pagina=3").get_json()
+    assert page["paginas"] == 3 and [u["apodo"] for u in page["usuarios"]] == ["boss"]
+    assert [u["apodo"] for u in client.get("/api/usuarios?q=ALUMNO&grado=5°").get_json()["usuarios"]] == ["alumno0", "alumno1"]
+    assert [u["apodo"] for u in client.get("/api/usuarios?rol=bibliotecario").get_json()["usuarios"]] == ["biblio"]
+    assert [u["apodo"] for u in client.get("/api/usuarios?activo=0").get_json()["usuarios"]] == ["alumno2"]
+    assert client.get("/api/usuarios?rol=jefe").status_code == 422
+    assert client.get("/api/usuarios?pagina=0").status_code == 422
