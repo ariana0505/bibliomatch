@@ -51,17 +51,23 @@ export function createWorld(canvas) {
     return mesh;
   }
   function label(parent, text, w, h, x, y, z, rotation = 0, bg = '#1b3c39', vertical = false) {
-    const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 96;
-    const ctx = canvas.getContext('2d'); ctx.fillStyle = bg; ctx.fillRect(0, 0, 512, 96);
-    ctx.strokeStyle = '#edcf96'; ctx.strokeRect(8, 8, 496, 80);
+    // Spines keep a small fixed canvas (there are hundreds); sign plates match
+    // their real aspect ratio so the lettering is neither stretched nor blurry.
+    const canvas = document.createElement('canvas');
+    canvas.width = vertical ? 512 : 1024;
+    canvas.height = vertical ? 96 : Math.max(64, Math.min(256, Math.round(1024 * h / w)));
+    const {width, height} = canvas, inset = Math.round(height / 12);
+    const ctx = canvas.getContext('2d'); ctx.fillStyle = bg; ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = '#edcf96'; ctx.lineWidth = Math.max(1, height / 48); ctx.strokeRect(inset, inset, width - inset * 2, height - inset * 2);
     if (vertical) {
       ctx.fillStyle = '#ded4b9'; ctx.fillRect(17, 56, 34, 23);
       ctx.fillStyle = '#bba579'; ctx.fillRect(57, 10, 3, 76); ctx.fillRect(452, 10, 3, 76);
     }
     ctx.fillStyle = '#edcf96'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    let size = 34;
-    do { ctx.font = `${size--}px Georgia`; } while (ctx.measureText(text).width > 470 && size > 10);
-    ctx.fillText(text, 256, 48, 470);
+    const maxWidth = width - inset * 5;
+    let size = vertical ? 34 : Math.round(height * .6);
+    do { ctx.font = `${size--}px Georgia`; } while (ctx.measureText(text).width > maxWidth && size > 10);
+    ctx.fillText(text, width / 2, height / 2, maxWidth);
     const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 4);
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({map:texture}));
